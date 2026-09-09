@@ -18,31 +18,24 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v2
-
-    - name: Restore NuGet packages
-      run: |
-          nuget restore PHARMA.sln -PackagesDirectory packages
-          dir packages
-
     - name: Build Solution (Release)
       run: |
-          msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /p:RestorePackages=false /v:minimal /nologo
+          msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /v:minimal /nologo
 
     - name: Collect artifacts
+      shell: cmd
       run: |
           mkdir artifacts
           if exist "PHARMA.UI\bin\Release\PHARMA.exe" (
-            xcopy /Y "PHARMA.UI\bin\Release\*.exe" "artifacts\"
-            xcopy /Y "PHARMA.UI\bin\Release\*.dll" "artifacts\"
-            xcopy /Y "PHARMA.UI\bin\Release\*.config" "artifacts\"
+            copy /Y "PHARMA.UI\bin\Release\*.exe" artifacts\
+            copy /Y "PHARMA.UI\bin\Release\*.dll" artifacts\
+            if exist "PHARMA.UI\bin\Release\*.config" copy /Y "PHARMA.UI\bin\Release\*.config" artifacts\
+            dir artifacts
           ) else (
-            echo PHARMA.exe not found - listing bin folders
-            dir /s PHARMA.UI\bin
+            echo ERROR: PHARMA.exe not found
+            dir /s /b *.exe
             exit /b 1
           )
-          dir artifacts
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4

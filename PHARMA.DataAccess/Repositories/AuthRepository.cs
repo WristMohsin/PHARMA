@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using PHARMA.Models;
 
 namespace PHARMA.DataAccess.Repositories
@@ -9,25 +8,27 @@ namespace PHARMA.DataAccess.Repositories
         public UserData ValidateUser(string username, string password)
         {
             // Try UserData first
-            var sql = "SELECT * FROM UserData WHERE UserName = ? AND PassWord = ?";
-            var user = QuerySingleOrDefault<UserData>(sql, new { username, password });
+            var user = QuerySingleOrDefault<UserData>(
+                "SELECT * FROM UserData WHERE UserName = ? AND PassWord = ?",
+                username, password);
             if (user != null) return user;
 
             // Fallback to usertable
-            var sql2 = "SELECT Username as UserName, Password as PassWord, Company, Grcd FROM usertable WHERE Username = ? AND Password = ?";
-            return QuerySingleOrDefault<UserData>(sql2, new { username, password });
+            return QuerySingleOrDefault<UserData>(
+                "SELECT Username as UserName, Password as PassWord, Company, Grcd FROM usertable WHERE Username = ? AND Password = ?",
+                username, password);
         }
 
-        public IEnumerable<UserRights> GetUserRights(string username)
+        public List<UserRights> GetUserRights(string username)
         {
-            var sql = "SELECT * FROM UserRights WHERE UserName = ? AND (YNO = 'Y' OR YNO = '1')";
-            return Query<UserRights>(sql, new { username });
+            return Query<UserRights>(
+                "SELECT * FROM UserRights WHERE UserName = ? AND (YNO = 'Y' OR YNO = '1')",
+                username);
         }
 
-        public IEnumerable<MenuName> GetAllMenus()
+        public List<MenuName> GetAllMenus()
         {
-            var sql = "SELECT * FROM MenuName ORDER BY MenuTitle, MenuSubTitle, OptionTitle";
-            return Query<MenuName>(sql);
+            return Query<MenuName>("SELECT * FROM MenuName ORDER BY MenuTitle, MenuSubTitle, OptionTitle");
         }
     }
 }
