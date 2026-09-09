@@ -6,8 +6,7 @@
     <AssemblyName>PHARMA</AssemblyName>
     <LangVersion>7.3</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
-    <Deterministic>true</Deterministic>
-    <ApplicationIcon></ApplicationIcon>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Configuration" />
