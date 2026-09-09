@@ -18,16 +18,18 @@ namespace PHARMA.DataAccess.Repositories
 
         public List<Product> Search(string term)
         {
-            var like = "%" + term + "%";
+            if (string.IsNullOrWhiteSpace(term) || term == "%")
+                return Query<Product>("SELECT TOP 200 * FROM product ORDER BY name1");
+            var like = "%" + term.Trim() + "%";
             return Query<Product>(
-                "SELECT TOP 50 * FROM product WHERE name1 LIKE ? OR pcode LIKE ? OR BarCode1 LIKE ? ORDER BY name1",
+                "SELECT TOP 100 * FROM product WHERE name1 LIKE ? OR pcode LIKE ? OR BarCode1 LIKE ? ORDER BY name1",
                 like, like, like);
         }
 
         public List<Product> GetLowStock(int threshold = 10)
         {
             return Query<Product>(
-                "SELECT * FROM product WHERE balance <= ? AND Active = 'Y' ORDER BY balance", threshold);
+                "SELECT * FROM product WHERE balance <= ? AND (Active = 'Y' OR Active IS NULL OR Active = '') ORDER BY balance", threshold);
         }
 
         public int GetStock(string pcode)

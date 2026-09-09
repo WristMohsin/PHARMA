@@ -7,9 +7,10 @@ namespace PHARMA.Services
     public class ProductService
     {
         private readonly ProductRepository _repo = new ProductRepository();
-
-        public Product Get(string pcode) => _repo.GetByCode(pcode);
-        public IEnumerable<Product> Search(string term) => _repo.Search(term);
-        public IEnumerable<Product> GetLowStock(int threshold = 10) => _repo.GetLowStock(threshold);
+        public Product Get(string pcode) { return _repo.GetByCode(pcode); }
+        public Product GetByBarcode(string bc) { return _repo.GetByBarcode(bc); }
+        public List<Product> Search(string term) { return _repo.Search(term); }
+        public List<Product> GetLowStock(int threshold) { return _repo.GetLowStock(threshold); }
+        public int GetStock(string pcode) { return _repo.GetStock(pcode); }
     }
 }
