@@ -42,6 +42,11 @@ namespace PHARMA.DataAccess.Repositories
                 a.dsc, a.NAME, a.Address, a.Phone, a.Mobile, a.AreaCd, a.Balance, a.Partytype, a.acno);
         }
 
+        public int AdjustBalance(int acno, decimal amount)
+        {
+            return Execute("UPDATE ACCOUNT SET Balance = ISNULL(Balance, 0) + ? WHERE acno = ?", amount, acno);
+        }
+
         public decimal GetOutstandingTotal()
         {
             return ExecuteScalar<decimal>("SELECT ISNULL(SUM(Balance), 0) FROM ACCOUNT WHERE Balance > 0");
