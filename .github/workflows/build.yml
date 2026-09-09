@@ -19,29 +19,55 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Solution (Release)
-      run: msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /v:normal /nologo
+      id: build
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /v:detailed /nologo /fl /flp:logfile=msbuild.log`;verbosity=detailed
+        echo "MSBUILD_EXIT=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "MSBuild exit code: $LASTEXITCODE"
+
+    - name: Show MSBuild errors
+      if: always()
+      shell: pwsh
+      run: |
+        if (Test-Path msbuild.log) {
+          Write-Host "===== MSBUILD ERRORS/WARNINGS ====="
+          Select-String -Path msbuild.log -Pattern "error |: error|error CS|warning CS" | Select-Object -First 100 | ForEach-Object { $_.Line }
+          Write-Host "===== LAST 80 LINES ====="
+          Get-Content msbuild.log -Tail 80
+        } else {
+          Write-Host "No msbuild.log found"
+        }
 
     - name: Collect artifacts
+      if: always()
       shell: cmd
       run: |
           mkdir artifacts 2>nul
+          if exist msbuild.log copy /Y msbuild.log artifacts\
           if exist PHARMA.UI\bin\Release\PHARMA.exe (
             copy /Y PHARMA.UI\bin\Release\*.exe artifacts\
             copy /Y PHARMA.UI\bin\Release\*.dll artifacts\
             if exist PHARMA.UI\bin\Release\*.config copy /Y PHARMA.UI\bin\Release\*.config artifacts\
-            echo === ARTIFACTS ===
-            dir artifacts
+            echo BUILD_OK> artifacts\BUILD_OK.txt
           ) else (
-            echo ERROR: PHARMA.exe not found
-            dir /s /b *.exe 2>nul
-            dir /s /b PHARMA.UI\bin 2>nul
-            exit /b 1
+            echo BUILD_FAILED> artifacts\BUILD_FAILED.txt
           )
+          dir artifacts
 
     - name: Upload Artifacts
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: PHARMA-Release
         path: artifacts/
         retention-days: 30
-        if-no-files-found: error
+        if-no-files-found: warn
+
+    - name: Fail if build failed
+      if: always()
+      shell: pwsh
+      run: |
+        if ($env:MSBUILD_EXIT -and $env:MSBUILD_EXIT -ne "0") { exit 1 }
+        if (-not (Test-Path "PHARMA.UI\bin\Release\PHARMA.exe")) { exit 1 }
