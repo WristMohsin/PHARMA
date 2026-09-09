@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net45</TargetFramework>
     <RootNamespace>PHARMA.UI</RootNamespace>
     <AssemblyName>PHARMA</AssemblyName>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>5</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>

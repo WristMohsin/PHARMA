@@ -27,10 +27,10 @@ jobs:
       shell: cmd
       run: |
           mkdir artifacts
-          copy /Y PHARMA.UI\bin\Release\net48\PHARMA.exe artifacts\
-          copy /Y PHARMA.UI\bin\Release\net48\*.dll artifacts\
-          if exist PHARMA.UI\bin\Release\net48\PHARMA.exe.config copy /Y PHARMA.UI\bin\Release\net48\PHARMA.exe.config artifacts\
-          if exist PHARMA.UI\bin\Release\net48\App.config copy /Y PHARMA.UI\bin\Release\net48\App.config artifacts\PHARMA.exe.config
+          copy /Y PHARMA.UI\bin\Release\net45\PHARMA.exe artifacts\
+          copy /Y PHARMA.UI\bin\Release\net45\*.dll artifacts\
+          if exist PHARMA.UI\bin\Release\net45\PHARMA.exe.config copy /Y PHARMA.UI\bin\Release\net45\PHARMA.exe.config artifacts\
+          if exist PHARMA.UI\bin\Release\net45\App.config copy /Y PHARMA.UI\bin\Release\net45\App.config artifacts\PHARMA.exe.config
           dir artifacts
 
     - name: Upload Artifacts
