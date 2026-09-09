@@ -26,10 +26,20 @@ namespace PHARMA.UI.Forms
             IsMdiContainer = true;
             WindowState = FormWindowState.Maximized;
             KeyPreview = true;
-            BackColor = Color.FromArgb(240, 240, 245);
+            BackColor = Color.FromArgb(245, 247, 250);
             try { BuildMenus(); } catch { BuildHardcodedMenu(); }
             ShowDashboard();
             UpdateStatus();
+            FormClosing += MainMdiForm_FormClosing;
+        }
+
+        private void MainMdiForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.ApplicationExitCall)
+            {
+                if (!UiStyle.ConfirmAppExit())
+                    e.Cancel = true;
+            }
         }
 
         private void BuildMenus()
@@ -44,7 +54,7 @@ namespace PHARMA.UI.Forms
             var file = new ToolStripMenuItem("&File");
             var exit = new ToolStripMenuItem("E&xit");
             exit.ShortcutKeys = Keys.Alt | Keys.F4;
-            exit.Click += (s, e) => Application.Exit();
+            exit.Click += (s, e) => Close();
             file.DropDownItems.Add(exit);
             menuStrip1.Items.Add(file);
 
