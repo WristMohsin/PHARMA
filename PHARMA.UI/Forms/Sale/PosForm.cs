@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using PHARMA.Models;
 using PHARMA.Services;
 using PHARMA.UI.Helpers;
+using PHARMA.UI.Forms.Sale;
 
 namespace PHARMA.UI.Forms.POS
 {
@@ -15,137 +16,146 @@ namespace PHARMA.UI.Forms.POS
         private readonly AccountService _accService = new AccountService();
         private List<Sale_Detail> _lines = new List<Sale_Detail>();
         private int _invNo;
-        private TextBox txtBarcode, txtParty, txtDisc;
+        private TextBox txtBarcode, txtParty, txtDisc, txtInvNo;
         private DataGridView dgvItems;
-        private Label lblTotal, lblInv, lblHint, lblPartyName;
-        private Button btnSave, btnNew, btnClose, btnPrint;
-        private string _lastPartyName = "";
+        private Label lblTotal, lblPartyName, lblGross, lblNet, lblDate;
+        private Button btnSave, btnNew, btnClose, btnPrint, btnSearch;
+        private string _lastPartyName = "Cash";
+        private Panel headerPanel, footerPanel;
 
         public PosForm()
         {
-            InitializeComponent();
+            Text = "Sale Invoice";
             KeyPreview = true;
             WindowState = FormWindowState.Maximized;
+            BackColor = Color.FromArgb(250, 248, 240);
+            Font = new Font("Segoe UI", 9.5F);
+            FormClosing += (s, e) =>
+            {
+                if (!UiStyle.ConfirmClose(this, "POS / Sale"))
+                    e.Cancel = true;
+            };
+            BuildUI();
             NewSale();
+            KeyDown += PosForm_KeyDown;
         }
 
-        private void InitializeComponent()
+        private void BuildUI()
         {
-            txtBarcode = new TextBox();
-            txtParty = new TextBox();
-            txtDisc = new TextBox();
-            dgvItems = new DataGridView();
-            lblTotal = new Label();
-            lblInv = new Label();
-            lblHint = new Label();
-            lblPartyName = new Label();
-            btnSave = new Button();
-            btnNew = new Button();
-            btnClose = new Button();
-            btnPrint = new Button();
+            var tool = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 36,
+                BackColor = Color.FromArgb(220, 215, 200)
+            };
+            btnNew = MakeToolBtn("New (F2)", 4);
+            btnSearch = MakeToolBtn("Product Search (F4)", 100);
+            btnSave = MakeToolBtn("Save (F5)", 250);
+            btnPrint = MakeToolBtn("Save+Print (F9)", 360);
+            btnClose = MakeToolBtn("Close (Esc)", 500);
+            btnNew.Click += (s, e) => NewSale();
+            btnSearch.Click += (s, e) => OpenProductSearch("");
+            btnSave.Click += (s, e) => SaveSale(false);
+            btnPrint.Click += (s, e) => SaveSale(true);
+            btnClose.Click += (s, e) => Close();
+            tool.Controls.AddRange(new Control[] { btnNew, btnSearch, btnSave, btnPrint, btnClose });
 
-            ((System.ComponentModel.ISupportInitialize)(dgvItems)).BeginInit();
-            SuspendLayout();
+            headerPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 90,
+                BackColor = Color.FromArgb(245, 240, 225),
+                Padding = new Padding(8)
+            };
 
-            lblInv.AutoSize = true;
-            lblInv.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            lblInv.Location = new Point(20, 12);
+            var lblInv = new Label { Text = "Inv.#", Location = new Point(12, 12), AutoSize = true };
+            txtInvNo = new TextBox { Location = new Point(55, 9), Size = new Size(90, 24), ReadOnly = true, BackColor = Color.White };
+            lblDate = new Label { Text = DateTime.Now.ToString("dd/MM/yyyy"), Location = new Point(160, 12), AutoSize = true };
 
-            var lblP = new Label();
-            lblP.Text = "Party Code";
-            lblP.Location = new Point(20, 45);
-            lblP.AutoSize = true;
-            txtParty.Location = new Point(100, 42);
-            txtParty.Size = new Size(80, 25);
-            txtParty.Text = "0";
+            var lblP = new Label { Text = "Party", Location = new Point(12, 48), AutoSize = true };
+            txtParty = new TextBox { Location = new Point(55, 45), Size = new Size(70, 24), Text = "0" };
             txtParty.Leave += TxtParty_Leave;
+            txtParty.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) { txtBarcode.Focus(); e.SuppressKeyPress = true; }
+            };
+            lblPartyName = new Label
+            {
+                Location = new Point(135, 48),
+                AutoSize = true,
+                ForeColor = Color.DarkGreen,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Text = "Cash"
+            };
 
-            lblPartyName.Location = new Point(190, 45);
-            lblPartyName.AutoSize = true;
-            lblPartyName.ForeColor = Color.DarkGreen;
-
-            txtBarcode.Font = new Font("Consolas", 14F);
-            txtBarcode.Location = new Point(20, 75);
-            txtBarcode.Size = new Size(350, 30);
+            var lblB = new Label { Text = "Barcode / Code (Enter)  |  F4 = Search", Location = new Point(320, 12), AutoSize = true, ForeColor = Color.DarkBlue };
+            txtBarcode = new TextBox
+            {
+                Location = new Point(320, 42),
+                Size = new Size(320, 28),
+                Font = new Font("Consolas", 13F)
+            };
             txtBarcode.KeyDown += TxtBarcode_KeyDown;
 
-            lblHint.Text = "Barcode/Code + Enter | F2=New F5=Save F9=Print Esc=Close";
-            lblHint.Location = new Point(380, 80);
-            lblHint.AutoSize = true;
-            lblHint.ForeColor = Color.DarkBlue;
+            headerPanel.Controls.AddRange(new Control[] {
+                lblInv, txtInvNo, lblDate, lblP, txtParty, lblPartyName, lblB, txtBarcode
+            });
 
-            dgvItems.AllowUserToAddRows = false;
-            dgvItems.AllowUserToDeleteRows = false;
-            dgvItems.Location = new Point(20, 115);
-            dgvItems.Size = new Size(920, 360);
-            dgvItems.ReadOnly = true;
-            dgvItems.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvItems.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            footerPanel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 70,
+                BackColor = Color.FromArgb(245, 240, 225)
+            };
 
-            var lblD = new Label();
-            lblD.Text = "Discount";
-            lblD.Location = new Point(20, 490);
-            lblD.AutoSize = true;
-            lblD.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            txtDisc.Location = new Point(90, 487);
-            txtDisc.Size = new Size(80, 25);
-            txtDisc.Text = "0";
-            txtDisc.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            var lblD = new Label { Text = "Discount", Location = new Point(12, 12), AutoSize = true };
+            txtDisc = new TextBox { Location = new Point(80, 9), Size = new Size(80, 24), Text = "0" };
             txtDisc.Leave += (s, e) => RefreshGrid();
 
-            lblTotal.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
-            lblTotal.Location = new Point(700, 485);
-            lblTotal.AutoSize = true;
-            lblTotal.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            lblTotal.Text = "Total: 0.00";
+            lblGross = new Label { Text = "Gross: 0.00", Location = new Point(200, 12), AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
+            lblNet = new Label
+            {
+                Text = "INVOICE AMOUNT: 0.00",
+                Location = new Point(400, 10),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 100, 60)
+            };
+            lblTotal = lblNet;
 
-            btnNew.Text = "New (F2)";
-            btnNew.Location = new Point(20, 525);
-            btnNew.Size = new Size(90, 35);
-            btnNew.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnNew.Click += (s, e) => NewSale();
+            var hint = new Label
+            {
+                Text = "F2=New  F4=Product Search  F5=Save  F9=Print  Esc=Close  |  Enter on empty = Search",
+                Location = new Point(12, 42),
+                AutoSize = true,
+                ForeColor = Color.DimGray
+            };
+            footerPanel.Controls.AddRange(new Control[] { lblD, txtDisc, lblGross, lblNet, hint });
 
-            btnSave.Text = "Save (F5)";
-            btnSave.Location = new Point(120, 525);
-            btnSave.Size = new Size(90, 35);
-            btnSave.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnSave.Click += (s, e) => SaveSale(false);
+            dgvItems = new DataGridView { Dock = DockStyle.Fill };
+            UiStyle.StyleGrid(dgvItems);
+            dgvItems.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(180, 150, 80);
+            dgvItems.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvItems.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 252, 240);
 
-            btnPrint.Text = "Save+Print (F9)";
-            btnPrint.Location = new Point(220, 525);
-            btnPrint.Size = new Size(120, 35);
-            btnPrint.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnPrint.Click += (s, e) => SaveSale(true);
-
-            btnClose.Text = "Close (Esc)";
-            btnClose.Location = new Point(350, 525);
-            btnClose.Size = new Size(100, 35);
-            btnClose.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnClose.Click += (s, e) => Close();
-
-            Controls.Add(lblInv);
-            Controls.Add(lblP);
-            Controls.Add(txtParty);
-            Controls.Add(lblPartyName);
-            Controls.Add(txtBarcode);
-            Controls.Add(lblHint);
             Controls.Add(dgvItems);
-            Controls.Add(lblD);
-            Controls.Add(txtDisc);
-            Controls.Add(lblTotal);
-            Controls.Add(btnNew);
-            Controls.Add(btnSave);
-            Controls.Add(btnPrint);
-            Controls.Add(btnClose);
+            Controls.Add(footerPanel);
+            Controls.Add(headerPanel);
+            Controls.Add(tool);
+        }
 
-            ClientSize = new Size(960, 580);
-            Name = "PosForm";
-            Text = "POS / Sale Billing";
-            KeyDown += PosForm_KeyDown;
-
-            ((System.ComponentModel.ISupportInitialize)(dgvItems)).EndInit();
-            ResumeLayout(false);
-            PerformLayout();
+        private Button MakeToolBtn(string text, int x)
+        {
+            var b = new Button
+            {
+                Text = text,
+                Location = new Point(x, 4),
+                Size = new Size(text.Length > 14 ? 140 : 90, 28),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(235, 230, 215),
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            return b;
         }
 
         private void TxtParty_Leave(object sender, EventArgs e)
@@ -159,9 +169,13 @@ namespace PHARMA.UI.Forms.POS
                 if (a != null)
                 {
                     _lastPartyName = a.NAME != null ? a.NAME : (a.dsc != null ? a.dsc : code.ToString());
-                    lblPartyName.Text = _lastPartyName;
+                    lblPartyName.Text = _lastPartyName + "  |  Bal: " + a.Balance.ToString("N2");
                 }
-                else { lblPartyName.Text = "(not found)"; _lastPartyName = ""; }
+                else
+                {
+                    lblPartyName.Text = "(not found)";
+                    _lastPartyName = "";
+                }
             }
             catch { lblPartyName.Text = ""; }
         }
@@ -170,7 +184,8 @@ namespace PHARMA.UI.Forms.POS
         {
             _lines.Clear();
             _invNo = _saleService.GetNextInvNo();
-            lblInv.Text = "Invoice #: " + _invNo;
+            txtInvNo.Text = _invNo.ToString();
+            lblDate.Text = DateTime.Now.ToString("dd/MM/yyyy");
             txtParty.Text = "0";
             txtDisc.Text = "0";
             lblPartyName.Text = "Cash";
@@ -185,28 +200,56 @@ namespace PHARMA.UI.Forms.POS
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-                AddItem(txtBarcode.Text.Trim());
-                txtBarcode.Clear();
+                string code = txtBarcode.Text.Trim();
+                if (string.IsNullOrEmpty(code))
+                    OpenProductSearch("");
+                else
+                {
+                    var p = _saleService.FindProduct(code);
+                    if (p != null)
+                    {
+                        AddProduct(p);
+                        txtBarcode.Clear();
+                    }
+                    else
+                        OpenProductSearch(code);
+                }
+            }
+            else if (e.KeyCode == Keys.F4)
+            {
+                OpenProductSearch(txtBarcode.Text.Trim());
+                e.Handled = true;
             }
         }
 
-        private void AddItem(string code)
+        private void OpenProductSearch(string filter)
         {
-            if (string.IsNullOrEmpty(code)) return;
-            var p = _saleService.FindProduct(code);
-            if (p == null)
+            using (var popup = new ProductSearchPopup(filter))
             {
-                MessageBox.Show("Product not found: " + code, "POS", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                if (popup.ShowDialog(this) == DialogResult.OK && popup.SelectedProduct != null)
+                {
+                    AddProduct(popup.SelectedProduct);
+                    txtBarcode.Clear();
+                    txtBarcode.Focus();
+                }
+                else
+                    txtBarcode.Focus();
             }
+        }
+
+        private void AddProduct(Product p)
+        {
+            if (p == null) return;
             string msg;
             if (!_saleService.CanSell(p.pcode, 1, out msg))
             {
                 MessageBox.Show(msg, "Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                if (!PHARMA.Common.Constants.Stock.AllowNegativeStock)
+                    return;
             }
             var existing = _lines.FirstOrDefault(x => x.pcode == p.pcode);
-            if (existing != null) existing.qty += 1;
+            if (existing != null)
+                existing.qty += 1;
             else
             {
                 var d = new Sale_Detail();
@@ -223,13 +266,35 @@ namespace PHARMA.UI.Forms.POS
 
         private void RefreshGrid()
         {
+            var rows = new List<object>();
+            foreach (var x in _lines)
+            {
+                string name = x.pcode;
+                try
+                {
+                    var p = _saleService.FindProduct(x.pcode);
+                    if (p != null && !string.IsNullOrEmpty(p.name1)) name = p.name1;
+                }
+                catch { }
+                rows.Add(new
+                {
+                    Description = name,
+                    Code = x.pcode,
+                    Qty = x.qty,
+                    Rate = x.rate,
+                    Disc = x.dip,
+                    NetAmount = x.qty * x.rate
+                });
+            }
             dgvItems.DataSource = null;
-            dgvItems.DataSource = _lines.Select(x => new { Code = x.pcode, Qty = x.qty, Rate = x.rate, Amount = x.qty * x.rate }).ToList();
+            dgvItems.DataSource = rows;
+
             decimal gross = 0;
             foreach (var x in _lines) gross += x.qty * x.rate;
             decimal disc = 0;
             decimal.TryParse(txtDisc.Text, out disc);
-            lblTotal.Text = "Total: " + (gross - disc).ToString("N2");
+            lblGross.Text = "Gross: " + gross.ToString("N2");
+            lblNet.Text = "INVOICE AMOUNT: " + (gross - disc).ToString("N2");
         }
 
         private void SaveSale(bool print)
@@ -278,6 +343,7 @@ namespace PHARMA.UI.Forms.POS
         private void PosForm_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.F2) { NewSale(); e.Handled = true; }
+            else if (e.KeyCode == Keys.F4) { OpenProductSearch(txtBarcode.Text.Trim()); e.Handled = true; }
             else if (e.KeyCode == Keys.F5) { SaveSale(false); e.Handled = true; }
             else if (e.KeyCode == Keys.F9) { SaveSale(true); e.Handled = true; }
             else if (e.KeyCode == Keys.Escape) { Close(); e.Handled = true; }
