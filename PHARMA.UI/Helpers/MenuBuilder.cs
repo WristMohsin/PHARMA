@@ -10,13 +10,38 @@ namespace PHARMA.UI.Helpers
     {
         public static void Build(MenuStrip menuStrip, AuthService auth, Action<string> openModule)
         {
-            menuStrip.Items.Clear();
+            if (menuStrip == null || auth == null) return;
 
-            var menus = auth.GetMenusForUser().ToList();
-            var groups = menus.GroupBy(m => m.MenuTitle).OrderBy(g => g.Key);
+            System.Collections.Generic.IEnumerable<MenuName> menus = null;
+            try
+            {
+                menus = auth.GetMenusForUser();
+            }
+            catch
+            {
+                return; // empty DB / no MenuName rows
+            }
+
+            if (menus == null) return;
+            var list = menus.ToList();
+            if (list.Count == 0) return;
+
+            var groups = list.GroupBy(m => m.MenuTitle ?? "Other").OrderBy(g => g.Key);
 
             foreach (var g in groups)
             {
+                // skip if already have same top menu from hardcoded
+                bool exists = false;
+                foreach (ToolStripItem existing in menuStrip.Items)
+                {
+                    if (string.Equals(existing.Text.Replace("&", ""), g.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists) continue;
+
                 var top = new ToolStripMenuItem(g.Key);
                 foreach (var item in g.OrderBy(x => x.MenuSubTitle).ThenBy(x => x.OptionTitle))
                 {
@@ -32,12 +57,6 @@ namespace PHARMA.UI.Helpers
                 if (top.DropDownItems.Count > 0)
                     menuStrip.Items.Add(top);
             }
-
-            // Always add Exit
-            var exit = new ToolStripMenuItem("Exit");
-            exit.ShortcutKeys = Keys.Alt | Keys.F4;
-            exit.Click += (s, e) => Application.Exit();
-            menuStrip.Items.Add(exit);
         }
     }
 }
