@@ -68,6 +68,37 @@ namespace PHARMA.Services
                     d.invdt = header.invdt;
                     d.code = header.code;
                     _saleRepo.InsertDetail(d);
+                    _prodRepo.AdjustStock(d.pcode, -d.qty);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        public bool SaveReturn(Sale header, List<Sale_Detail> details, out string error)
+        {
+            error = null;
+            try
+            {
+                if (details == null || details.Count == 0)
+                {
+                    error = "No items.";
+                    return false;
+                }
+                header.type = 2;
+                _saleRepo.InsertSale(header);
+                foreach (var d in details)
+                {
+                    d.invno = header.invno;
+                    d.invdt = header.invdt;
+                    d.code = header.code;
+                    d.type = 2;
+                    _saleRepo.InsertDetail(d);
+                    _prodRepo.AdjustStock(d.pcode, d.qty);
                 }
                 return true;
             }

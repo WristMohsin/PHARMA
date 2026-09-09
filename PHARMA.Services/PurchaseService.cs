@@ -12,7 +12,12 @@ namespace PHARMA.Services
 
         public int NextInvNo() { return _repo.GetNextInvNo(); }
         public List<purchase> Recent() { return _repo.GetRecent(); }
-        public Product FindProduct(string code) { return _prod.GetByBarcode(code) ?? _prod.GetByCode(code); }
+        public Product FindProduct(string code)
+        {
+            var p = _prod.GetByBarcode(code);
+            if (p == null) p = _prod.GetByCode(code);
+            return p;
+        }
 
         public bool Save(purchase header, List<pur_det> details, out string error)
         {
@@ -26,6 +31,7 @@ namespace PHARMA.Services
                     d.invno = header.invno;
                     d.invdt = header.invdt;
                     _repo.InsertDetail(d);
+                    _prod.AdjustStock(d.pcode, d.qty);
                 }
                 return true;
             }

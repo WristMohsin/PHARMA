@@ -37,6 +37,11 @@ namespace PHARMA.DataAccess.Repositories
             return ExecuteScalar<int>("SELECT ISNULL(balance, 0) FROM product WHERE pcode = ?", pcode);
         }
 
+        public int AdjustStock(string pcode, int qtyDelta)
+        {
+            return Execute("UPDATE product SET balance = ISNULL(balance, 0) + ? WHERE pcode = ?", qtyDelta, pcode);
+        }
+
         public int Insert(Product p)
         {
             return Execute(

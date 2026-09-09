@@ -23,5 +23,17 @@ namespace PHARMA.Services
             catch (System.Exception ex) { error = ex.Message; return false; }
         }
         public decimal OutstandingTotal() { return _repo.GetOutstandingTotal(); }
+
+        public bool AdjustBalance(int acno, decimal amount, out string error)
+        {
+            error = null;
+            try
+            {
+                if (_repo.GetByCode(acno) == null) { error = "Account not found."; return false; }
+                _repo.AdjustBalance(acno, amount);
+                return true;
+            }
+            catch (System.Exception ex) { error = ex.Message; return false; }
+        }
     }
 }
