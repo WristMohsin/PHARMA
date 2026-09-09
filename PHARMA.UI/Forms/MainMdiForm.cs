@@ -4,146 +4,167 @@ using System.Windows.Forms;
 using PHARMA.Services;
 using PHARMA.UI.Helpers;
 using PHARMA.UI.Forms.POS;
+using PHARMA.UI.Forms.Inventory;
+using PHARMA.UI.Forms.Purchase;
+using PHARMA.UI.Forms.Accounts;
 
 namespace PHARMA.UI.Forms
 {
     public partial class MainMdiForm : Form
     {
         private readonly AuthService _auth = new AuthService();
+        private readonly SaleService _saleSvc = new SaleService();
+        private readonly ProductService _prodSvc = new ProductService();
+        private readonly AccountService _accSvc = new AccountService();
         private Panel _welcomePanel;
 
         public MainMdiForm()
         {
             InitializeComponent();
-            this.IsMdiContainer = true;
-            this.WindowState = FormWindowState.Maximized;
-            this.KeyPreview = true;
-            this.BackColor = Color.FromArgb(240, 240, 245);
-
-            try
-            {
-                BuildMenuSafe();
-            }
-            catch (Exception ex)
-            {
-                // Even if DB menu fails, keep working
-                MessageBox.Show("Menu load warning: " + ex.Message, "PHARMA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                BuildHardcodedMenu();
-            }
-
-            ShowWelcome();
+            IsMdiContainer = true;
+            WindowState = FormWindowState.Maximized;
+            KeyPreview = true;
+            BackColor = Color.FromArgb(240, 240, 245);
+            try { BuildMenus(); } catch { BuildHardcodedMenu(); }
+            ShowDashboard();
             UpdateStatus();
         }
 
-        private void BuildMenuSafe()
+        private void BuildMenus()
         {
             menuStrip1.Items.Clear();
             BuildHardcodedMenu();
-
-            // Optional: add DB menus if table has data
-            try
-            {
-                MenuBuilder.Build(menuStrip1, _auth, OpenModule);
-            }
-            catch
-            {
-                // ignore empty MenuName table
-            }
+            try { MenuBuilder.Build(menuStrip1, _auth, OpenModule); } catch { }
         }
 
         private void BuildHardcodedMenu()
         {
-            // File
-            var fileMenu = new ToolStripMenuItem("&File");
-            var exitItem = new ToolStripMenuItem("E&xit");
-            exitItem.ShortcutKeys = Keys.Alt | Keys.F4;
-            exitItem.Click += (s, e) => Application.Exit();
-            fileMenu.DropDownItems.Add(exitItem);
-            menuStrip1.Items.Add(fileMenu);
+            var file = new ToolStripMenuItem("&File");
+            var exit = new ToolStripMenuItem("E&xit") { ShortcutKeys = Keys.Alt | Keys.F4 };
+            exit.Click += (s, e) => Application.Exit();
+            file.DropDownItems.Add(exit);
+            menuStrip1.Items.Add(file);
 
-            // Sale
-            var saleMenu = new ToolStripMenuItem("&Sale");
-            var posItem = new ToolStripMenuItem("&POS / Billing");
-            posItem.ShortcutKeys = Keys.Control | Keys.S;
-            posItem.Click += (s, e) => OpenPos();
-            saleMenu.DropDownItems.Add(posItem);
-            menuStrip1.Items.Add(saleMenu);
+            var sale = new ToolStripMenuItem("&Sale");
+            var pos = new ToolStripMenuItem("&POS / Billing") { ShortcutKeys = Keys.Control | Keys.S };
+            pos.Click += (s, e) => OpenPos();
+            sale.DropDownItems.Add(pos);
+            menuStrip1.Items.Add(sale);
 
-            // Help
-            var helpMenu = new ToolStripMenuItem("&Help");
-            var aboutItem = new ToolStripMenuItem("&Shortcuts (F1)");
-            aboutItem.Click += (s, e) => ShowHelp();
-            helpMenu.DropDownItems.Add(aboutItem);
-            menuStrip1.Items.Add(helpMenu);
+            var pur = new ToolStripMenuItem("&Purchase");
+            var purEntry = new ToolStripMenuItem("&Purchase Entry") { ShortcutKeys = Keys.Control | Keys.P };
+            purEntry.Click += (s, e) => OpenChild(new PurchaseForm());
+            pur.DropDownItems.Add(purEntry);
+            menuStrip1.Items.Add(pur);
+
+            var inv = new ToolStripMenuItem("&Inventory");
+            var products = new ToolStripMenuItem("&Products") { ShortcutKeys = Keys.Control | Keys.I };
+            products.Click += (s, e) => OpenChild(new ProductListForm());
+            inv.DropDownItems.Add(products);
+            menuStrip1.Items.Add(inv);
+
+            var acc = new ToolStripMenuItem("&Accounts");
+            var parties = new ToolStripMenuItem("&Parties / Accounts") { ShortcutKeys = Keys.Control | Keys.A };
+            parties.Click += (s, e) => OpenChild(new AccountListForm());
+            acc.DropDownItems.Add(parties);
+            menuStrip1.Items.Add(acc);
+
+            var help = new ToolStripMenuItem("&Help");
+            var sc = new ToolStripMenuItem("&Shortcuts (F1)");
+            sc.Click += (s, e) => ShowHelp();
+            help.DropDownItems.Add(sc);
+            menuStrip1.Items.Add(help);
         }
 
-        private void ShowWelcome()
+        private void ShowDashboard()
         {
-            _welcomePanel = new Panel();
-            _welcomePanel.Dock = DockStyle.Fill;
-            _welcomePanel.BackColor = Color.FromArgb(245, 247, 250);
+            _welcomePanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(245, 247, 250) };
 
-            var title = new Label();
-            title.Text = "PHARMA / PharmaZ";
-            title.Font = new Font("Segoe UI", 28F, FontStyle.Bold);
-            title.ForeColor = Color.FromArgb(30, 60, 120);
-            title.AutoSize = true;
-            title.Location = new Point(40, 40);
+            var title = new Label
+            {
+                Text = "PHARMA / PharmaZ",
+                Font = new Font("Segoe UI", 26F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 60, 120),
+                AutoSize = true,
+                Location = new Point(40, 30)
+            };
 
             var user = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "-";
-            var subtitle = new Label();
-            subtitle.Text = "Welcome, " + user + "\n\nSelect a module from the menu or press a button below.";
-            subtitle.Font = new Font("Segoe UI", 12F);
-            subtitle.AutoSize = true;
-            subtitle.Location = new Point(40, 100);
+            var sub = new Label
+            {
+                Text = "Welcome, " + user,
+                Font = new Font("Segoe UI", 12F),
+                AutoSize = true,
+                Location = new Point(40, 80)
+            };
 
-            var btnPos = new Button();
-            btnPos.Text = "POS / Billing  (Ctrl+S)";
-            btnPos.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            btnPos.Size = new Size(280, 60);
-            btnPos.Location = new Point(40, 180);
-            btnPos.BackColor = Color.FromArgb(0, 120, 215);
-            btnPos.ForeColor = Color.White;
-            btnPos.FlatStyle = FlatStyle.Flat;
-            btnPos.Click += (s, e) => OpenPos();
+            decimal todaySale = 0;
+            int lowStock = 0;
+            decimal outstanding = 0;
+            try { todaySale = _saleSvc.GetTodayTotal(); } catch { }
+            try { lowStock = _prodSvc.GetLowStock(10).Count; } catch { }
+            try { outstanding = _accSvc.OutstandingTotal(); } catch { }
 
-            var btnHelp = new Button();
-            btnHelp.Text = "Keyboard Help (F1)";
-            btnHelp.Font = new Font("Segoe UI", 12F);
-            btnHelp.Size = new Size(280, 45);
-            btnHelp.Location = new Point(40, 260);
-            btnHelp.Click += (s, e) => ShowHelp();
+            var stats = new Label
+            {
+                Text = string.Format("Today's Sale: {0:N2}     |     Low Stock Items: {1}     |     Outstanding: {2:N2}",
+                    todaySale, lowStock, outstanding),
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 100, 80),
+                AutoSize = true,
+                Location = new Point(40, 115)
+            };
 
-            var hint = new Label();
-            hint.Text = "Menu bar is at the TOP:  File  |  Sale  |  Help\n\nIf you see only this screen, click POS / Billing to start.";
-            hint.Font = new Font("Segoe UI", 10F);
-            hint.ForeColor = Color.DimGray;
-            hint.AutoSize = true;
-            hint.Location = new Point(40, 340);
+            int y = 170;
+            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, OpenPos));
+            _welcomePanel.Controls.Add(MakeBigButton("Purchase Entry", "Ctrl+P", 340, y, () => OpenChild(new PurchaseForm())));
+            y += 70;
+            _welcomePanel.Controls.Add(MakeBigButton("Products / Stock", "Ctrl+I", 40, y, () => OpenChild(new ProductListForm())));
+            _welcomePanel.Controls.Add(MakeBigButton("Parties / Accounts", "Ctrl+A", 340, y, () => OpenChild(new AccountListForm())));
+
+            var hint = new Label
+            {
+                Text = "Top menu: File | Sale | Purchase | Inventory | Accounts | Help\nF1 = Shortcuts",
+                Font = new Font("Segoe UI", 10F),
+                ForeColor = Color.DimGray,
+                AutoSize = true,
+                Location = new Point(40, 340)
+            };
 
             _welcomePanel.Controls.Add(title);
-            _welcomePanel.Controls.Add(subtitle);
-            _welcomePanel.Controls.Add(btnPos);
-            _welcomePanel.Controls.Add(btnHelp);
+            _welcomePanel.Controls.Add(sub);
+            _welcomePanel.Controls.Add(stats);
             _welcomePanel.Controls.Add(hint);
-
-            // Welcome is NOT an MDI child - sits behind; hide when POS opens
-            this.Controls.Add(_welcomePanel);
+            Controls.Add(_welcomePanel);
             _welcomePanel.BringToFront();
-            // Keep menu on top
             menuStrip1.BringToFront();
             statusStrip1.BringToFront();
         }
 
-        private void HideWelcome()
+        private Button MakeBigButton(string text, string shortcut, int x, int y, Action onClick)
         {
-            if (_welcomePanel != null && _welcomePanel.Visible)
-                _welcomePanel.Visible = false;
+            var b = new Button
+            {
+                Text = text + "\n(" + shortcut + ")",
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Size = new Size(280, 55),
+                Location = new Point(x, y),
+                BackColor = Color.FromArgb(0, 120, 215),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            b.Click += (s, e) => onClick();
+            return b;
+        }
+
+        private void HideDashboard()
+        {
+            if (_welcomePanel != null) _welcomePanel.Visible = false;
         }
 
         private void OpenPos()
         {
-            HideWelcome();
+            HideDashboard();
             OpenChild(new PosForm());
         }
 
@@ -151,15 +172,17 @@ namespace PHARMA.UI.Forms
         {
             if (string.IsNullOrEmpty(key)) return;
             key = key.ToUpperInvariant();
-            if (key.Contains("POS") || key.Contains("SALE") || key.Contains("BILL"))
-                OpenPos();
-            else
-                MessageBox.Show("Module '" + key + "' coming soon.\n\nUse: Sale → POS / Billing", "PHARMA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (key.Contains("POS") || key.Contains("SALE") || key.Contains("BILL")) OpenPos();
+            else if (key.Contains("PUR")) { HideDashboard(); OpenChild(new PurchaseForm()); }
+            else if (key.Contains("PROD") || key.Contains("STOCK") || key.Contains("INV")) { HideDashboard(); OpenChild(new ProductListForm()); }
+            else if (key.Contains("ACC") || key.Contains("PARTY")) { HideDashboard(); OpenChild(new AccountListForm()); }
+            else MessageBox.Show("Module: " + key, "PHARMA");
         }
 
         private void OpenChild(Form child)
         {
-            foreach (Form f in this.MdiChildren)
+            HideDashboard();
+            foreach (Form f in MdiChildren)
             {
                 if (f.GetType() == child.GetType())
                 {
@@ -176,35 +199,23 @@ namespace PHARMA.UI.Forms
         private void UpdateStatus()
         {
             var u = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "-";
-            statusLabel.Text = "User: " + u + "  |  Database: PharmaZ  |  Ctrl+S = POS  |  F1 = Help";
+            statusLabel.Text = "User: " + u + "  |  DB: PharmaZ  |  Ctrl+S=POS  Ctrl+P=Purchase  Ctrl+I=Products  Ctrl+A=Accounts  F1=Help";
         }
 
         private void ShowHelp()
         {
             MessageBox.Show(
-                "Keyboard Shortcuts:\n\n" +
-                "Ctrl+S   Open POS / Billing\n" +
-                "F2       New sale (inside POS)\n" +
-                "F5       Save sale (inside POS)\n" +
-                "Enter    Add item after barcode\n" +
-                "Esc      Close form\n" +
-                "Alt+F4   Exit application\n\n" +
-                "Menu: Sale → POS / Billing",
-                "PHARMA Help", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Ctrl+S  POS / Billing\nCtrl+P  Purchase Entry\nCtrl+I  Products\nCtrl+A  Accounts\nF1      This help\nF2      New (in entry screens)\nF5      Save\nEsc     Close form\nAlt+F4  Exit",
+                "Shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void MainMdiForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.S)
-            {
-                OpenPos();
-                e.Handled = true;
-            }
-            else if (e.KeyCode == Keys.F1)
-            {
-                ShowHelp();
-                e.Handled = true;
-            }
+            if (e.Control && e.KeyCode == Keys.S) { OpenPos(); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.P) { HideDashboard(); OpenChild(new PurchaseForm()); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.I) { HideDashboard(); OpenChild(new ProductListForm()); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.A) { HideDashboard(); OpenChild(new AccountListForm()); e.Handled = true; }
+            else if (e.KeyCode == Keys.F1) { ShowHelp(); e.Handled = true; }
         }
     }
 }
