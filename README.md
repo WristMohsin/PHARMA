@@ -1,44 +1,22 @@
-# PHARMA - Pharmacy / Clinic Management System
+# PHARMA - Pharmacy Management System
 
-Windows desktop application for Pharmacy Management.
+Windows desktop app (.NET Framework 4.8) — Windows 7+
 
-## Requirements
-- Windows 7 / 8 / 10 / 11
-- .NET Framework 4.8
-- SQL Server (via ODBC)
-- ODBC Driver for SQL Server installed
+## Database: **PharmaZ**
 
-## Features
-- MDI Parent interface
-- Keyboard-centric (hotkeys, Tab navigation)
-- Login with role-based rights
-- Sale / POS (priority)
-- Purchase, Inventory, Accounts, Masters
-- Dashboard
-
-## Connection
-Uses **ODBC** connection string. Configure in `App.config`:
+1. Run SQL scripts in folder `Database/`
+2. Full create script: `Create_PharmaZ.sql` (creates DB + all 100 tables)
+3. Connection string in `PHARMA.UI/App.config` already points to **PharmaZ**
 
 ```xml
-<connectionStrings>
-  <add name="PHARMA" connectionString="Driver={ODBC Driver 17 for SQL Server};Server=YOUR_SERVER;Database=PHARMA;Uid=sa;Pwd=YOUR_PASSWORD;" providerName="System.Data.Odbc" />
-</connectionStrings>
+Driver={SQL Server};Server=localhost;Database=PharmaZ;Uid=sa;Pwd=sa;
 ```
 
-Or use SQL Server Native Client / older drivers for Windows 7 compatibility.
-
 ## Build
-GitHub Actions produces `PHARMA.exe` + dependencies in artifacts.
+GitHub Actions builds `PHARMA.exe` — download from Actions → Artifacts → PHARMA-Release
 
-## Modules
-- Login & User Rights
-- Sale / POS (barcode, hold, return)
-- Purchase
-- Inventory / Stock
-- Accounts / Ledger
-- Masters (CRUD)
-- Attendance
-- SMS
-- Narcotics Register
-
-Patient Token module is skipped as requested.
+## Features
+- MDI parent, keyboard-centric (F2/F5/Ctrl+S)
+- Login + rights
+- POS / Sale billing
+- ODBC → SQL Server
