@@ -31,6 +31,7 @@ namespace PHARMA.UI.Forms
             ShowDashboard();
             UpdateStatus();
             FormClosing += MainMdiForm_FormClosing;
+            MdiChildActivate += MainMdiForm_MdiChildActivate;
         }
 
         private void MainMdiForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -40,6 +41,14 @@ namespace PHARMA.UI.Forms
                 if (!UiStyle.ConfirmAppExit())
                     e.Cancel = true;
             }
+        }
+
+        private void MainMdiForm_MdiChildActivate(object sender, EventArgs e)
+        {
+            if (ActiveMdiChild == null)
+                RestoreDashboard();
+            else
+                SendDashboardBack();
         }
 
         private void BuildMenus()
@@ -61,7 +70,7 @@ namespace PHARMA.UI.Forms
             var sale = new ToolStripMenuItem("&Sale");
             var pos = new ToolStripMenuItem("&POS / Billing");
             pos.ShortcutKeys = Keys.Control | Keys.S;
-            pos.Click += (s, e) => OpenPos();
+            pos.Click += (s, e) => OpenChild(new PosForm());
             var hist = new ToolStripMenuItem("Sale &History");
             hist.Click += (s, e) => OpenChild(new SaleListForm());
             var ret = new ToolStripMenuItem("Sale &Return");
@@ -110,6 +119,13 @@ namespace PHARMA.UI.Forms
 
         private void ShowDashboard()
         {
+            if (_welcomePanel != null)
+            {
+                _welcomePanel.Visible = true;
+                _welcomePanel.SendToBack();
+                return;
+            }
+
             _welcomePanel = new Panel();
             _welcomePanel.Dock = DockStyle.Fill;
             _welcomePanel.BackColor = Color.FromArgb(245, 247, 250);
@@ -143,7 +159,7 @@ namespace PHARMA.UI.Forms
             stats.Location = new Point(40, 115);
 
             int y = 170;
-            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, OpenPos));
+            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, delegate { OpenChild(new PosForm()); }));
             _welcomePanel.Controls.Add(MakeBigButton("Purchase Entry", "Ctrl+P", 340, y, delegate { OpenChild(new PurchaseForm()); }));
             y += 70;
             _welcomePanel.Controls.Add(MakeBigButton("Products / Stock", "Ctrl+I", 40, y, delegate { OpenChild(new ProductListForm()); }));
@@ -153,7 +169,7 @@ namespace PHARMA.UI.Forms
             _welcomePanel.Controls.Add(MakeBigButton("Sale Return", "", 340, y, delegate { OpenChild(new SaleReturnForm()); }));
 
             var hint = new Label();
-            hint.Text = "Menu: File | Sale | Purchase | Inventory | Accounts | Masters | Help";
+            hint.Text = "Menu: File | Sale | Purchase | Inventory | Accounts | Masters | Help\nChild windows open on top — close them to return here.";
             hint.Font = new Font("Segoe UI", 10F);
             hint.ForeColor = Color.DimGray;
             hint.AutoSize = true;
@@ -164,9 +180,54 @@ namespace PHARMA.UI.Forms
             _welcomePanel.Controls.Add(stats);
             _welcomePanel.Controls.Add(hint);
             Controls.Add(_welcomePanel);
-            _welcomePanel.BringToFront();
+            _welcomePanel.SendToBack();
             menuStrip1.BringToFront();
             statusStrip1.BringToFront();
+        }
+
+        private void SendDashboardBack()
+        {
+            if (_welcomePanel != null)
+            {
+                _welcomePanel.Visible = true;
+                _welcomePanel.SendToBack();
+            }
+        }
+
+        private void RestoreDashboard()
+        {
+            if (_welcomePanel != null)
+            {
+                _welcomePanel.Visible = true;
+                _welcomePanel.BringToFront();
+                menuStrip1.BringToFront();
+                statusStrip1.BringToFront();
+                RefreshDashboardStats();
+            }
+        }
+
+        private void RefreshDashboardStats()
+        {
+            try
+            {
+                foreach (Control c in _welcomePanel.Controls)
+                {
+                    var lbl = c as Label;
+                    if (lbl != null && lbl.Text != null && lbl.Text.StartsWith("Today's Sale"))
+                    {
+                        decimal todaySale = 0;
+                        int lowStock = 0;
+                        decimal outstanding = 0;
+                        try { todaySale = _saleSvc.GetTodayTotal(); } catch { }
+                        try { lowStock = _prodSvc.GetLowStock(10).Count; } catch { }
+                        try { outstanding = _accSvc.OutstandingTotal(); } catch { }
+                        lbl.Text = string.Format("Today's Sale: {0:N2}     |     Low Stock: {1}     |     Outstanding: {2:N2}",
+                            todaySale, lowStock, outstanding);
+                        break;
+                    }
+                }
+            }
+            catch { }
         }
 
         private Button MakeBigButton(string text, string shortcut, int x, int y, Action onClick)
@@ -183,45 +244,48 @@ namespace PHARMA.UI.Forms
             return b;
         }
 
-        private void HideDashboard()
-        {
-            if (_welcomePanel != null) _welcomePanel.Visible = false;
-        }
-
-        private void OpenPos()
-        {
-            HideDashboard();
-            OpenChild(new PosForm());
-        }
-
         private void OpenModule(string key)
         {
             if (string.IsNullOrEmpty(key)) return;
             key = key.ToUpperInvariant();
-            if (key.Contains("POS") || key.Contains("BILL")) OpenPos();
-            else if (key.Contains("PUR")) { HideDashboard(); OpenChild(new PurchaseForm()); }
-            else if (key.Contains("PROD") || key.Contains("STOCK")) { HideDashboard(); OpenChild(new ProductListForm()); }
-            else if (key.Contains("ACC") || key.Contains("PARTY")) { HideDashboard(); OpenChild(new AccountListForm()); }
-            else if (key.Contains("RETURN")) { HideDashboard(); OpenChild(new SaleReturnForm()); }
-            else if (key.Contains("HIST") || key.Contains("SALE")) { HideDashboard(); OpenChild(new SaleListForm()); }
+            if (key.Contains("POS") || key.Contains("BILL")) OpenChild(new PosForm());
+            else if (key.Contains("PUR")) OpenChild(new PurchaseForm());
+            else if (key.Contains("PROD") || key.Contains("STOCK")) OpenChild(new ProductListForm());
+            else if (key.Contains("ACC") || key.Contains("PARTY")) OpenChild(new AccountListForm());
+            else if (key.Contains("RETURN")) OpenChild(new SaleReturnForm());
+            else if (key.Contains("HIST") || key.Contains("SALE")) OpenChild(new SaleListForm());
             else MessageBox.Show("Module: " + key, "PHARMA");
         }
 
         private void OpenChild(Form child)
         {
-            HideDashboard();
             foreach (Form f in MdiChildren)
             {
                 if (f.GetType() == child.GetType())
                 {
                     f.Activate();
                     child.Dispose();
+                    SendDashboardBack();
                     return;
                 }
             }
+
             child.MdiParent = this;
             child.WindowState = FormWindowState.Maximized;
+            child.FormClosed += Child_FormClosed;
             child.Show();
+            SendDashboardBack();
+            child.BringToFront();
+            child.Activate();
+        }
+
+        private void Child_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            BeginInvoke(new Action(delegate
+            {
+                if (MdiChildren.Length == 0)
+                    RestoreDashboard();
+            }));
         }
 
         private void UpdateStatus()
@@ -233,16 +297,16 @@ namespace PHARMA.UI.Forms
         private void ShowHelp()
         {
             MessageBox.Show(
-                "Ctrl+S  POS\nCtrl+P  Purchase\nCtrl+I  Products\nCtrl+A  Accounts\nF1  Help\nF2  New/Add\nF5  Save\nF9  Save+Print (POS)\nEsc  Close\nAlt+F4  Exit",
+                "Ctrl+S  POS\nCtrl+P  Purchase\nCtrl+I  Products\nCtrl+A  Accounts\nF1  Help\nF2  New/Add\nF4  Product Search\nF5  Save\nF9  Print\nEsc  Close form\nAlt+F4  Exit app",
                 "Shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void MainMdiForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.S) { OpenPos(); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.P) { HideDashboard(); OpenChild(new PurchaseForm()); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.I) { HideDashboard(); OpenChild(new ProductListForm()); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.A) { HideDashboard(); OpenChild(new AccountListForm()); e.Handled = true; }
+            if (e.Control && e.KeyCode == Keys.S) { OpenChild(new PosForm()); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.P) { OpenChild(new PurchaseForm()); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.I) { OpenChild(new ProductListForm()); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.A) { OpenChild(new AccountListForm()); e.Handled = true; }
             else if (e.KeyCode == Keys.F1) { ShowHelp(); e.Handled = true; }
         }
     }
