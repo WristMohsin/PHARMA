@@ -5,13 +5,13 @@ namespace PHARMA.Common
         public const string AppName = "PHARMA";
         public const string ConnectionStringName = "PHARMA";
 
-        // Keyboard shortcuts (common)
-        public const Keys HotkeyNew = Keys.F2;
-        public const Keys HotkeySave = Keys.F5;
-        public const Keys HotkeySearch = Keys.F3;
-        public const Keys HotkeyDelete = Keys.F8;
-        public const Keys HotkeyPrint = Keys.F9;
-        public const Keys HotkeyExit = Keys.Escape;
+        // Keyboard shortcut names (actual Keys used only in UI project)
+        public const string HotkeyNew = "F2";
+        public const string HotkeySave = "F5";
+        public const string HotkeySearch = "F3";
+        public const string HotkeyDelete = "F8";
+        public const string HotkeyPrint = "F9";
+        public const string HotkeyExit = "Escape";
 
         public static class Stock
         {
@@ -19,6 +19,4 @@ namespace PHARMA.Common
             public static bool WarnOnLowStock = true;
         }
     }
-
-    // Simple Keys enum helper if needed, but use System.Windows.Forms.Keys in UI
 }

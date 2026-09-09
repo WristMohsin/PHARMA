@@ -22,18 +22,27 @@ jobs:
       uses: NuGet/setup-nuget@v2
 
     - name: Restore NuGet packages
-      run: nuget restore PHARMA.sln
+      run: |
+          nuget restore PHARMA.sln -PackagesDirectory packages
+          dir packages
 
     - name: Build Solution (Release)
-      run: msbuild PHARMA.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin\Release\ /v:minimal
-
-    - name: Publish UI (copy dependencies)
       run: |
-        mkdir artifacts
-        xcopy /E /I /Y "PHARMA.UI\bin\Release\*" "artifacts\"
-        # Keep only needed files - remove pdb, xml if desired
-        del /Q artifacts\*.pdb 2>nul || true
-        del /Q artifacts\*.xml 2>nul || true
+          msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /p:RestorePackages=false /v:minimal /nologo
+
+    - name: Collect artifacts
+      run: |
+          mkdir artifacts
+          if exist "PHARMA.UI\bin\Release\PHARMA.exe" (
+            xcopy /Y "PHARMA.UI\bin\Release\*.exe" "artifacts\"
+            xcopy /Y "PHARMA.UI\bin\Release\*.dll" "artifacts\"
+            xcopy /Y "PHARMA.UI\bin\Release\*.config" "artifacts\"
+          ) else (
+            echo PHARMA.exe not found - listing bin folders
+            dir /s PHARMA.UI\bin
+            exit /b 1
+          )
+          dir artifacts
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
@@ -41,3 +50,4 @@ jobs:
         name: PHARMA-Release
         path: artifacts/
         retention-days: 30
+        if-no-files-found: error
