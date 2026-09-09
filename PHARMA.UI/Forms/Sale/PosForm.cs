@@ -6,7 +6,7 @@ using System.Windows.Forms;
 using PHARMA.Models;
 using PHARMA.Services;
 
-namespace PHARMA.UI.Forms.Sale
+namespace PHARMA.UI.Forms.POS
 {
     /// <summary>
     /// Fast keyboard-centric POS screen.
@@ -41,7 +41,6 @@ namespace PHARMA.UI.Forms.Sale
             ((System.ComponentModel.ISupportInitialize)(this.dgvItems)).BeginInit();
             this.SuspendLayout();
 
-            // txtBarcode
             this.txtBarcode.Font = new Font("Consolas", 14F);
             this.txtBarcode.Location = new Point(20, 50);
             this.txtBarcode.Name = "txtBarcode";
@@ -49,7 +48,6 @@ namespace PHARMA.UI.Forms.Sale
             this.txtBarcode.TabIndex = 0;
             this.txtBarcode.KeyDown += TxtBarcode_KeyDown;
 
-            // dgvItems
             this.dgvItems.AllowUserToAddRows = false;
             this.dgvItems.AllowUserToDeleteRows = false;
             this.dgvItems.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
@@ -60,37 +58,31 @@ namespace PHARMA.UI.Forms.Sale
             this.dgvItems.TabIndex = 1;
             this.dgvItems.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
 
-            // lblInv
             this.lblInv.AutoSize = true;
             this.lblInv.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             this.lblInv.Location = new Point(20, 15);
             this.lblInv.Text = "Invoice #:";
 
-            // lblTotal
             this.lblTotal.AutoSize = true;
             this.lblTotal.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
             this.lblTotal.Location = new Point(700, 520);
             this.lblTotal.Text = "Total: 0.00";
 
-            // btnNew
             this.btnNew.Location = new Point(20, 520);
             this.btnNew.Size = new Size(100, 35);
             this.btnNew.Text = "New (F2)";
             this.btnNew.Click += (s, e) => NewSale();
 
-            // btnSave
             this.btnSave.Location = new Point(130, 520);
             this.btnSave.Size = new Size(100, 35);
             this.btnSave.Text = "Save (F5)";
             this.btnSave.Click += (s, e) => SaveSale();
 
-            // btnClose
             this.btnClose.Location = new Point(240, 520);
             this.btnClose.Size = new Size(100, 35);
             this.btnClose.Text = "Close (Esc)";
             this.btnClose.Click += (s, e) => this.Close();
 
-            // lblHint
             this.lblHint.AutoSize = true;
             this.lblHint.ForeColor = Color.DarkBlue;
             this.lblHint.Location = new Point(450, 55);
@@ -205,7 +197,7 @@ namespace PHARMA.UI.Forms.Sale
                 return;
             }
 
-            var header = new Sale
+            var header = new PHARMA.Models.Sale
             {
                 invno = _invNo,
                 invdt = DateTime.Now,
@@ -213,7 +205,7 @@ namespace PHARMA.UI.Forms.Sale
                 grsamt = _lines.Sum(x => x.qty * x.rate),
                 type = 1,
                 Posted = "Y",
-                Operator = AuthService.CurrentUser?.UserName ?? "",
+                Operator = (AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : ""),
                 Computername = Environment.MachineName,
                 PostTime = DateTime.Now.ToString("HH:mm:ss")
             };

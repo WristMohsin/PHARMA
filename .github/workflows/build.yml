@@ -27,17 +27,11 @@ jobs:
       shell: cmd
       run: |
           mkdir artifacts
-          for /r %%f in (PHARMA.exe) do (
-            if exist "%%f" copy /Y "%%f" artifacts\
-          )
-          for /r %%f in (PHARMA.dll PHARMA.Common.dll PHARMA.Models.dll PHARMA.DataAccess.dll PHARMA.Services.dll) do (
-            if exist "%%f" copy /Y "%%f" artifacts\
-          )
-          if exist PHARMA.UI\bin\Release\net48\PHARMA.exe (
-            copy /Y PHARMA.UI\bin\Release\net48\* artifacts\
-          )
+          copy /Y PHARMA.UI\bin\Release\net48\PHARMA.exe artifacts\
+          copy /Y PHARMA.UI\bin\Release\net48\*.dll artifacts\
+          if exist PHARMA.UI\bin\Release\net48\PHARMA.exe.config copy /Y PHARMA.UI\bin\Release\net48\PHARMA.exe.config artifacts\
           if exist PHARMA.UI\bin\Release\net48\App.config copy /Y PHARMA.UI\bin\Release\net48\App.config artifacts\PHARMA.exe.config
-          dir /s artifacts
+          dir artifacts
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4

@@ -2,7 +2,7 @@ using System;
 using System.Windows.Forms;
 using PHARMA.Services;
 using PHARMA.UI.Helpers;
-using PHARMA.UI.Forms.Sale;
+using PHARMA.UI.Forms.POS;
 
 namespace PHARMA.UI.Forms
 {
@@ -25,7 +25,6 @@ namespace PHARMA.UI.Forms
         {
             MenuBuilder.Build(menuStrip1, _auth, OpenModule);
 
-            // Hard-coded useful entries for keyboard users (always available if rights allow)
             var saleMenu = new ToolStripMenuItem("&Sale");
             var posItem = new ToolStripMenuItem("&POS / Billing");
             posItem.ShortcutKeys = Keys.Control | Keys.S;
@@ -44,7 +43,6 @@ namespace PHARMA.UI.Forms
             {
                 OpenChild(new PosForm());
             }
-            // Add more modules later: Purchase, Inventory, Accounts, etc.
             else
             {
                 MessageBox.Show("Module '" + key + "' will be available soon.\n\nCurrently implemented: POS / Sale", "PHARMA", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -53,7 +51,6 @@ namespace PHARMA.UI.Forms
 
         private void OpenChild(Form child)
         {
-            // Single instance per type for POS
             foreach (Form f in this.MdiChildren)
             {
                 if (f.GetType() == child.GetType())
