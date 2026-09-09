@@ -54,8 +54,11 @@ namespace PHARMA.UI.Forms
             pos.Click += (s, e) => OpenPos();
             var hist = new ToolStripMenuItem("Sale &History");
             hist.Click += (s, e) => OpenChild(new SaleListForm());
+            var ret = new ToolStripMenuItem("Sale &Return");
+            ret.Click += (s, e) => OpenChild(new SaleReturnForm());
             sale.DropDownItems.Add(pos);
             sale.DropDownItems.Add(hist);
+            sale.DropDownItems.Add(ret);
             menuStrip1.Items.Add(sale);
 
             var pur = new ToolStripMenuItem("&Purchase");
@@ -76,7 +79,10 @@ namespace PHARMA.UI.Forms
             var parties = new ToolStripMenuItem("&Parties / Accounts");
             parties.ShortcutKeys = Keys.Control | Keys.A;
             parties.Click += (s, e) => OpenChild(new AccountListForm());
+            var pay = new ToolStripMenuItem("&Payment / Receipt");
+            pay.Click += (s, e) => OpenChild(new PaymentForm());
             acc.DropDownItems.Add(parties);
+            acc.DropDownItems.Add(pay);
             menuStrip1.Items.Add(acc);
 
             var mst = new ToolStripMenuItem("&Masters");
@@ -134,7 +140,7 @@ namespace PHARMA.UI.Forms
             _welcomePanel.Controls.Add(MakeBigButton("Parties / Accounts", "Ctrl+A", 340, y, delegate { OpenChild(new AccountListForm()); }));
             y += 70;
             _welcomePanel.Controls.Add(MakeBigButton("Sale History", "", 40, y, delegate { OpenChild(new SaleListForm()); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Companies", "", 340, y, delegate { OpenChild(new CompanyListForm()); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Sale Return", "", 340, y, delegate { OpenChild(new SaleReturnForm()); }));
 
             var hint = new Label();
             hint.Text = "Menu: File | Sale | Purchase | Inventory | Accounts | Masters | Help";
@@ -186,6 +192,7 @@ namespace PHARMA.UI.Forms
             else if (key.Contains("PUR")) { HideDashboard(); OpenChild(new PurchaseForm()); }
             else if (key.Contains("PROD") || key.Contains("STOCK")) { HideDashboard(); OpenChild(new ProductListForm()); }
             else if (key.Contains("ACC") || key.Contains("PARTY")) { HideDashboard(); OpenChild(new AccountListForm()); }
+            else if (key.Contains("RETURN")) { HideDashboard(); OpenChild(new SaleReturnForm()); }
             else if (key.Contains("HIST") || key.Contains("SALE")) { HideDashboard(); OpenChild(new SaleListForm()); }
             else MessageBox.Show("Module: " + key, "PHARMA");
         }
