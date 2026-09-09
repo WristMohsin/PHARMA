@@ -1,0 +1,43 @@
+name: Build PHARMA
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+
+    - name: Restore NuGet packages
+      run: nuget restore PHARMA.sln
+
+    - name: Build Solution (Release)
+      run: msbuild PHARMA.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin\Release\ /v:minimal
+
+    - name: Publish UI (copy dependencies)
+      run: |
+        mkdir artifacts
+        xcopy /E /I /Y "PHARMA.UI\bin\Release\*" "artifacts\"
+        # Keep only needed files - remove pdb, xml if desired
+        del /Q artifacts\*.pdb 2>nul || true
+        del /Q artifacts\*.xml 2>nul || true
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: PHARMA-Release
+        path: artifacts/
+        retention-days: 30
