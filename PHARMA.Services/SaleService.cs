@@ -11,15 +11,12 @@ namespace PHARMA.Services
         private readonly SaleRepository _saleRepo = new SaleRepository();
         private readonly ProductRepository _prodRepo = new ProductRepository();
 
-        public int GetNextInvNo()
-        {
-            return _saleRepo.GetNextInvoiceNo();
-        }
-
-        public decimal GetTodayTotal()
-        {
-            return _saleRepo.GetTodaySaleTotal();
-        }
+        public int GetNextInvNo() { return _saleRepo.GetNextInvoiceNo(); }
+        public decimal GetTodayTotal() { return _saleRepo.GetTodaySaleTotal(); }
+        public List<Sale> GetRecent(int top) { return _saleRepo.GetRecent(top); }
+        public List<Sale> SearchByDate(DateTime from, DateTime to) { return _saleRepo.SearchByDate(from, to); }
+        public Sale GetSale(int invno) { return _saleRepo.GetByInvNo(invno); }
+        public List<Sale_Detail> GetDetails(int invno) { return _saleRepo.GetDetails(invno); }
 
         public Product FindProduct(string codeOrBarcode)
         {
@@ -55,7 +52,6 @@ namespace PHARMA.Services
                     error = "No items in sale.";
                     return false;
                 }
-
                 foreach (var d in details)
                 {
                     string msg;
@@ -65,12 +61,12 @@ namespace PHARMA.Services
                         return false;
                     }
                 }
-
                 _saleRepo.InsertSale(header);
                 foreach (var d in details)
                 {
                     d.invno = header.invno;
                     d.invdt = header.invdt;
+                    d.code = header.code;
                     _saleRepo.InsertDetail(d);
                 }
                 return true;

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using PHARMA.Models;
 
@@ -10,6 +11,24 @@ namespace PHARMA.DataAccess.Repositories
             return ExecuteScalar<int>("SELECT ISNULL(MAX(invno), 0) + 1 FROM Sale");
         }
 
+        public decimal GetTodaySaleTotal()
+        {
+            return ExecuteScalar<decimal>(
+                "SELECT ISNULL(SUM(Net), 0) FROM Sale WHERE CONVERT(date, invdt) = CONVERT(date, GETDATE())");
+        }
+
+        public List<Sale> GetRecent(int top)
+        {
+            return Query<Sale>("SELECT TOP " + top + " * FROM Sale ORDER BY invno DESC");
+        }
+
+        public List<Sale> SearchByDate(DateTime from, DateTime to)
+        {
+            return Query<Sale>(
+                "SELECT * FROM Sale WHERE invdt >= ? AND invdt < ? ORDER BY invno DESC",
+                from.Date, to.Date.AddDays(1));
+        }
+
         public Sale GetByInvNo(int invno)
         {
             return QuerySingleOrDefault<Sale>("SELECT * FROM Sale WHERE invno = ?", invno);
@@ -20,36 +39,21 @@ namespace PHARMA.DataAccess.Repositories
             return Query<Sale_Detail>("SELECT * FROM Sale_Detail WHERE invno = ? ORDER BY SortNo, Srno", invno);
         }
 
-        public decimal GetTodaySaleTotal()
-        {
-            return ExecuteScalar<decimal>(
-                "SELECT ISNULL(SUM(Net), 0) FROM Sale WHERE CAST(invdt AS DATE) = CAST(GETDATE() AS DATE)");
-        }
-
         public int InsertSale(Sale s)
         {
-            var sql = @"
-INSERT INTO Sale (invno, invdt, DocNo, sno, code, grsamt, disc, xDip, xdisc, stax, Net, 
-                 XDiscReturn, SaleRt_Amt, Creditnote_Amt, Amt_Received, type, Remarks, 
-                 CreditDays, PartyPRVBalance, PrintCounter, Posted, CounterPartyName, 
-                 PostTime, Operator, Computername, shiftno, WHT)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            return Execute(sql,
-                s.invno, s.invdt, s.DocNo, s.sno, s.code, s.grsamt, s.disc, s.xDip, s.xdisc, s.stax, s.Net,
-                s.XDiscReturn, s.SaleRt_Amt, s.Creditnote_Amt, s.Amt_Received, s.type, s.Remarks,
-                s.CreditDays, s.PartyPRVBalance, s.PrintCounter, s.Posted, s.CounterPartyName,
-                s.PostTime, s.Operator, s.Computername, s.shiftno, s.WHT);
+            return Execute(
+                @"INSERT INTO Sale (invno, invdt, code, grsamt, disc, xdisc, stax, Net, type, Remarks, Operator, Computername, Posted, PostTime, shiftno, WHT, OrderNo)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                s.invno, s.invdt, s.code, s.grsamt, s.disc, s.xdisc, s.stax, s.Net, s.type,
+                s.Remarks, s.Operator, s.Computername, s.Posted, s.PostTime, s.shiftno, s.WHT, s.OrderNo);
         }
 
         public int InsertDetail(Sale_Detail d)
         {
-            var sql = @"
-INSERT INTO Sale_Detail (invno, invdt, SNO, code, pcode, rate, PcRt, qty, batchno, expdt, 
-                         bonus, dip, dip2, QtyR, BonusR, StxPerItem, type, SaleOnTp, SortNo)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            return Execute(sql,
-                d.invno, d.invdt, d.SNO, d.code, d.pcode, d.rate, d.PcRt, d.qty, d.batchno, d.expdt,
-                d.bonus, d.dip, d.dip2, d.QtyR, d.BonusR, d.StxPerItem, d.type, d.SaleOnTp, d.SortNo);
+            return Execute(
+                @"INSERT INTO Sale_Detail (invno, invdt, code, pcode, rate, qty, bonus, batchno, expdt, dip, dip2, type, SortNo)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                d.invno, d.invdt, d.code, d.pcode, d.rate, d.qty, d.bonus, d.batchno, d.expdt, d.dip, d.dip2, d.type, d.SortNo);
         }
     }
 }

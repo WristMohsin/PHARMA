@@ -26,7 +26,7 @@ namespace PHARMA.DataAccess.Repositories
                 like, like, like);
         }
 
-        public List<Product> GetLowStock(int threshold = 10)
+        public List<Product> GetLowStock(int threshold)
         {
             return Query<Product>(
                 "SELECT * FROM product WHERE balance <= ? AND (Active = 'Y' OR Active IS NULL OR Active = '') ORDER BY balance", threshold);
@@ -35,6 +35,23 @@ namespace PHARMA.DataAccess.Repositories
         public int GetStock(string pcode)
         {
             return ExecuteScalar<int>("SELECT ISNULL(balance, 0) FROM product WHERE pcode = ?", pcode);
+        }
+
+        public int Insert(Product p)
+        {
+            return Execute(
+                @"INSERT INTO product (pcode, name1, pack, unit, tp, rp, Pur_Rate, balance, BarCode1, Active, CmpCd)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                p.pcode, p.name1, p.pack, p.unit, p.tp, p.rp, p.Pur_Rate, p.balance, p.BarCode1,
+                string.IsNullOrEmpty(p.Active) ? "Y" : p.Active, p.CmpCd);
+        }
+
+        public int Update(Product p)
+        {
+            return Execute(
+                @"UPDATE product SET name1=?, pack=?, unit=?, tp=?, rp=?, Pur_Rate=?, balance=?, BarCode1=?, Active=?, CmpCd=?
+                  WHERE pcode=?",
+                p.name1, p.pack, p.unit, p.tp, p.rp, p.Pur_Rate, p.balance, p.BarCode1, p.Active, p.CmpCd, p.pcode);
         }
     }
 }
