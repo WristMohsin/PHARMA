@@ -19,21 +19,22 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Solution (Release)
-      run: |
-          msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /v:minimal /nologo
+      run: msbuild PHARMA.sln /t:Rebuild /p:Configuration=Release /p:Platform="Any CPU" /v:normal /nologo
 
     - name: Collect artifacts
       shell: cmd
       run: |
-          mkdir artifacts
-          if exist "PHARMA.UI\bin\Release\PHARMA.exe" (
-            copy /Y "PHARMA.UI\bin\Release\*.exe" artifacts\
-            copy /Y "PHARMA.UI\bin\Release\*.dll" artifacts\
-            if exist "PHARMA.UI\bin\Release\*.config" copy /Y "PHARMA.UI\bin\Release\*.config" artifacts\
+          mkdir artifacts 2>nul
+          if exist PHARMA.UI\bin\Release\PHARMA.exe (
+            copy /Y PHARMA.UI\bin\Release\*.exe artifacts\
+            copy /Y PHARMA.UI\bin\Release\*.dll artifacts\
+            if exist PHARMA.UI\bin\Release\*.config copy /Y PHARMA.UI\bin\Release\*.config artifacts\
+            echo === ARTIFACTS ===
             dir artifacts
           ) else (
             echo ERROR: PHARMA.exe not found
-            dir /s /b *.exe
+            dir /s /b *.exe 2>nul
+            dir /s /b PHARMA.UI\bin 2>nul
             exit /b 1
           )
 

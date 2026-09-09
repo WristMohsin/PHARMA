@@ -11,9 +11,15 @@ namespace PHARMA.Services
         private readonly SaleRepository _saleRepo = new SaleRepository();
         private readonly ProductRepository _prodRepo = new ProductRepository();
 
-        public int GetNextInvNo() => _saleRepo.GetNextInvoiceNo();
+        public int GetNextInvNo()
+        {
+            return _saleRepo.GetNextInvoiceNo();
+        }
 
-        public decimal GetTodayTotal() => _saleRepo.GetTodaySaleTotal();
+        public decimal GetTodayTotal()
+        {
+            return _saleRepo.GetTodaySaleTotal();
+        }
 
         public Product FindProduct(string codeOrBarcode)
         {
@@ -30,10 +36,10 @@ namespace PHARMA.Services
             {
                 if (Constants.Stock.AllowNegativeStock)
                 {
-                    message = $"Warning: Stock is {stock}. Allowing negative.";
+                    message = "Warning: Stock is " + stock + ". Allowing negative.";
                     return true;
                 }
-                message = $"Insufficient stock. Available: {stock}";
+                message = "Insufficient stock. Available: " + stock;
                 return false;
             }
             return true;
@@ -44,7 +50,6 @@ namespace PHARMA.Services
             error = null;
             try
             {
-                // basic validation
                 if (details == null || details.Count == 0)
                 {
                     error = "No items in sale.";
