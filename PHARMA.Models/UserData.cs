@@ -2,13 +2,14 @@ namespace PHARMA.Models
 {
     /// <summary>
     /// Authenticated user identity. Primary source: dbo.UserData.
-    /// UserName is the rights key (UserRights.UserName).
-    /// SecurityLevel drives Admin detection — never inferred from username text.
+    /// PassWord (legacy, max nvarchar(20)) may hold plaintext until migrated.
+    /// PasswordHash holds PBKDF2$v1$... when present (additive column).
     /// </summary>
     public class UserData
     {
         public string UserName { get; set; }
         public string PassWord { get; set; }
+        public string PasswordHash { get; set; }
         public string SecurityLevel { get; set; }
         public string UserPrinter { get; set; }
         public string Openrate { get; set; }
