@@ -63,7 +63,6 @@ namespace PHARMA.UI.Forms
             file.DropDownItems.Add(exit);
             menuStrip1.Items.Add(file);
 
-            // Primary: MenuName + UserRights (or ModuleCatalog filtered by rights)
             try
             {
                 MenuBuilder.Build(menuStrip1, _auth, OpenModule);
@@ -121,15 +120,24 @@ namespace PHARMA.UI.Forms
             stats.AutoSize = true;
             stats.Location = new Point(40, 115);
 
+            var allowed = MenuBuilder.GetAuthorizedModuleKeys(_auth);
             int y = 170;
-            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, delegate { OpenModule("POS"); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Purchase Entry", "Ctrl+P", 340, y, delegate { OpenModule("PURCHASE"); }));
-            y += 70;
-            _welcomePanel.Controls.Add(MakeBigButton("Products / Stock", "Ctrl+I", 40, y, delegate { OpenModule("PRODUCTS"); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Parties / Accounts", "Ctrl+A", 340, y, delegate { OpenModule("ACCOUNTS"); }));
-            y += 70;
-            _welcomePanel.Controls.Add(MakeBigButton("Sale History", "", 40, y, delegate { OpenModule("SALE_HISTORY"); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Sale Return", "", 340, y, delegate { OpenModule("SALE_RETURN"); }));
+            int col = 0;
+            System.Action<string, string, string> addBtn = delegate(string btnTitle, string sc, string key)
+            {
+                if (allowed.Count == 0) return;
+                if (!allowed.Contains(key)) return;
+                int x = (col % 2 == 0) ? 40 : 340;
+                if (col > 0 && col % 2 == 0) y += 70;
+                _welcomePanel.Controls.Add(MakeBigButton(btnTitle, sc, x, y, delegate { OpenModule(key); }));
+                col++;
+            };
+            addBtn("POS / Billing", "Ctrl+S", "POS");
+            addBtn("Purchase Entry", "Ctrl+P", "PURCHASE");
+            addBtn("Products / Stock", "Ctrl+I", "PRODUCTS");
+            addBtn("Parties / Accounts", "Ctrl+A", "ACCOUNTS");
+            addBtn("Sale History", "", "SALE_HISTORY");
+            addBtn("Sale Return", "", "SALE_RETURN");
 
             var hint = new Label();
             hint.Text = "Menus load from UserRights. Close child windows to return here.";
