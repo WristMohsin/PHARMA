@@ -218,28 +218,42 @@ namespace PHARMA.UI.Forms
         private void OpenModule(string key)
         {
             if (string.IsNullOrEmpty(key)) return;
-            key = key.ToUpperInvariant().Trim();
 
-            if (key == "POS" || key.Contains("BILL"))
+            string moduleKey = AuthService.NormalizeModuleKey(key);
+            if (string.IsNullOrEmpty(moduleKey))
+            {
+                MessageBox.Show("Unknown module.", "Access Denied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!_auth.HasModuleRight(moduleKey))
+            {
+                MessageBox.Show(
+                    "You do not have permission to access this module.",
+                    "Access Denied",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (moduleKey == "POS")
                 OpenChild(new PosForm());
-            else if (key == "SALE_RETURN" || key.Contains("RETURN"))
+            else if (moduleKey == "SALE_RETURN")
                 OpenChild(new SaleReturnForm());
-            else if (key == "SALE_HISTORY" || key.Contains("HIST"))
+            else if (moduleKey == "SALE_HISTORY")
                 OpenChild(new SaleListForm());
-            else if (key == "PURCHASE" || key.Contains("PUR"))
+            else if (moduleKey == "PURCHASE")
                 OpenChild(new PurchaseForm());
-            else if (key == "PRODUCTS" || key.Contains("PROD") || key.Contains("STOCK"))
+            else if (moduleKey == "PRODUCTS")
                 OpenChild(new ProductListForm());
-            else if (key == "PAYMENT" || key.Contains("PAYMENT") || key.Contains("RECEIPT"))
+            else if (moduleKey == "PAYMENT")
                 OpenChild(new PaymentForm());
-            else if (key == "ACCOUNTS" || key.Contains("ACC") || key.Contains("PARTY"))
+            else if (moduleKey == "ACCOUNTS")
                 OpenChild(new AccountListForm());
-            else if (key == "COMPANIES" || key.Contains("COMPANY"))
+            else if (moduleKey == "COMPANIES")
                 OpenChild(new CompanyListForm());
-            else if (key.Contains("SALE") || key.Contains("POS"))
-                OpenChild(new PosForm());
             else
-                MessageBox.Show("No form mapped for module: " + key, "PHARMA");
+                MessageBox.Show("No form mapped for module: " + moduleKey, "PHARMA");
         }
 
         private void OpenChild(Form child)
