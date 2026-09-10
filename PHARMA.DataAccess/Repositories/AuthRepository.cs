@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using PHARMA.Common;
 using PHARMA.Models;
 
 namespace PHARMA.DataAccess.Repositories
@@ -10,71 +11,155 @@ namespace PHARMA.DataAccess.Repositories
         public UserData ValidateUser(string username, string password)
         {
             if (string.IsNullOrEmpty(username)) return null;
+            if (password == null) return null;
 
             string userKey = username.Trim();
+            if (userKey.Length == 0) return null;
+            if (password.Length == 0) return null;
 
-            UserData fromUserData = null;
+            UserData userDataRow = null;
             try
             {
-                fromUserData = QuerySingleOrDefault<UserData>(
-                    "SELECT * FROM UserData WHERE UserName = ? AND PassWord = ?",
-                    userKey, password);
+                userDataRow = QuerySingleOrDefault<UserData>(
+                    "SELECT * FROM UserData WHERE UserName = ?",
+                    userKey);
             }
             catch (Exception ex)
             {
-                Trace.WriteLine("AuthRepository: UserData login query failed: " + ex.Message);
+                Trace.WriteLine("AuthRepository: UserData lookup failed: " + ex.Message);
                 throw;
             }
 
-            if (fromUserData != null)
+            if (userDataRow != null)
             {
-                NormalizeIdentity(fromUserData, userKey);
-                return fromUserData;
+                NormalizeIdentity(userDataRow, userKey);
+                if (!VerifyAndMaybeUpgradeUserData(userDataRow, password))
+                    return null;
+                return userDataRow;
             }
 
-            UserData fromUserTable = null;
+            usertable ut = null;
             try
             {
-                fromUserTable = QuerySingleOrDefault<UserData>(
-                    "SELECT Username as UserName, Password as PassWord, Company, Grcd FROM usertable WHERE Username = ? AND Password = ?",
-                    userKey, password);
+                ut = QuerySingleOrDefault<usertable>(
+                    "SELECT * FROM usertable WHERE Username = ?",
+                    userKey);
             }
             catch (Exception ex)
             {
-                Trace.WriteLine("AuthRepository: usertable login query failed: " + ex.Message);
+                Trace.WriteLine("AuthRepository: usertable lookup failed: " + ex.Message);
                 throw;
             }
 
-            if (fromUserTable == null)
+            if (ut == null || string.IsNullOrEmpty(ut.Username))
                 return null;
 
-            NormalizeIdentity(fromUserTable, userKey);
+            if (!VerifyAndMaybeUpgradeUserTable(ut, password))
+                return null;
+
+            var mapped = new UserData();
+            mapped.UserName = ut.Username.Trim();
+            mapped.Company = ut.Company;
+            mapped.Grcd = ut.Grcd;
+            NormalizeIdentity(mapped, userKey);
 
             try
             {
                 var profile = QuerySingleOrDefault<UserData>(
                     "SELECT * FROM UserData WHERE UserName = ?",
-                    fromUserTable.UserName);
+                    mapped.UserName);
                 if (profile != null)
                 {
                     if (!string.IsNullOrEmpty(profile.SecurityLevel))
-                        fromUserTable.SecurityLevel = profile.SecurityLevel;
+                        mapped.SecurityLevel = profile.SecurityLevel;
                     if (!string.IsNullOrEmpty(profile.DisplayName))
-                        fromUserTable.DisplayName = profile.DisplayName;
+                        mapped.DisplayName = profile.DisplayName;
                     if (!string.IsNullOrEmpty(profile.UserPrinter))
-                        fromUserTable.UserPrinter = profile.UserPrinter;
-                    if (string.IsNullOrEmpty(fromUserTable.UserName))
-                        fromUserTable.UserName = profile.UserName;
+                        mapped.UserPrinter = profile.UserPrinter;
                 }
             }
             catch (Exception ex)
             {
-                // Profile enrichment only — identity already authenticated via usertable.
-                // SecurityLevel stays null/unset => non-Admin (fail closed).
                 Trace.WriteLine("AuthRepository: UserData enrich after usertable login failed: " + ex.Message);
             }
 
-            return fromUserTable;
+            return mapped;
+        }
+
+        private bool VerifyAndMaybeUpgradeUserData(UserData row, string password)
+        {
+            string hashCol = row.PasswordHash;
+            string legacy = row.PassWord;
+
+            if (!string.IsNullOrEmpty(hashCol) && PasswordHasher.IsHashedFormat(hashCol))
+            {
+                return PasswordHasher.VerifyPassword(password, hashCol);
+            }
+
+            if (!string.IsNullOrEmpty(legacy) && PasswordHasher.IsHashedFormat(legacy))
+            {
+                return PasswordHasher.VerifyPassword(password, legacy);
+            }
+
+            if (string.IsNullOrEmpty(legacy))
+                return false;
+
+            if (!string.Equals(legacy, password, StringComparison.Ordinal))
+                return false;
+
+            try
+            {
+                string newHash = PasswordHasher.CreateHash(password);
+                Execute(
+                    "UPDATE UserData SET PasswordHash = ?, PassWord = ? WHERE UserName = ?",
+                    newHash, string.Empty, row.UserName);
+                row.PasswordHash = newHash;
+                row.PassWord = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("AuthRepository: UserData password upgrade failed: " + ex.Message);
+            }
+
+            return true;
+        }
+
+        private bool VerifyAndMaybeUpgradeUserTable(usertable row, string password)
+        {
+            string hashCol = row.PasswordHash;
+            string legacy = row.Password;
+
+            if (!string.IsNullOrEmpty(hashCol) && PasswordHasher.IsHashedFormat(hashCol))
+            {
+                return PasswordHasher.VerifyPassword(password, hashCol);
+            }
+
+            if (!string.IsNullOrEmpty(legacy) && PasswordHasher.IsHashedFormat(legacy))
+            {
+                return PasswordHasher.VerifyPassword(password, legacy);
+            }
+
+            if (string.IsNullOrEmpty(legacy))
+                return false;
+
+            if (!string.Equals(legacy, password, StringComparison.Ordinal))
+                return false;
+
+            try
+            {
+                string newHash = PasswordHasher.CreateHash(password);
+                Execute(
+                    "UPDATE usertable SET PasswordHash = ?, Password = ? WHERE Username = ?",
+                    newHash, string.Empty, row.Username);
+                row.PasswordHash = newHash;
+                row.Password = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("AuthRepository: usertable password upgrade failed: " + ex.Message);
+            }
+
+            return true;
         }
 
         public UserData GetUserProfileByUserName(string username)
