@@ -7,13 +7,11 @@ namespace PHARMA.DataAccess.Repositories
     {
         public UserData ValidateUser(string username, string password)
         {
-            // Try UserData first
             var user = QuerySingleOrDefault<UserData>(
                 "SELECT * FROM UserData WHERE UserName = ? AND PassWord = ?",
                 username, password);
             if (user != null) return user;
 
-            // Fallback to usertable
             return QuerySingleOrDefault<UserData>(
                 "SELECT Username as UserName, Password as PassWord, Company, Grcd FROM usertable WHERE Username = ? AND Password = ?",
                 username, password);
@@ -28,7 +26,8 @@ namespace PHARMA.DataAccess.Repositories
 
         public List<MenuName> GetAllMenus()
         {
-            return Query<MenuName>("SELECT * FROM MenuName ORDER BY MenuTitle, MenuSubTitle, OptionTitle");
+            return Query<MenuName>(
+                "SELECT * FROM MenuName ORDER BY ButtonName, MenuTitle, MenuSubTitle, OptionTitle");
         }
     }
 }
