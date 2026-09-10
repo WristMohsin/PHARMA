@@ -42,7 +42,7 @@ namespace PHARMA.DataAccess.Repositories
             catch (Exception ex)
             {
                 Trace.WriteLine("AuthRepository: usertable login query failed: " + ex.Message);
-                return null;
+                throw;
             }
 
             if (fromUserTable == null)
@@ -69,6 +69,8 @@ namespace PHARMA.DataAccess.Repositories
             }
             catch (Exception ex)
             {
+                // Profile enrichment only — identity already authenticated via usertable.
+                // SecurityLevel stays null/unset => non-Admin (fail closed).
                 Trace.WriteLine("AuthRepository: UserData enrich after usertable login failed: " + ex.Message);
             }
 

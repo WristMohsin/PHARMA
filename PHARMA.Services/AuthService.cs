@@ -49,12 +49,14 @@ namespace PHARMA.Services
             try
             {
                 string rightsKey = CurrentUser.RightsKey;
+                // Successful query may return zero rows — that is valid (restricted user)
                 CurrentRights = _repo.GetUserRights(rightsKey) ?? new List<UserRights>();
             }
             catch (Exception ex)
             {
                 Trace.WriteLine("AuthService.Login GetUserRights failed: " + ex.Message);
-                CurrentRights = new List<UserRights>();
+                ClearSession();
+                throw;
             }
 
             return true;
