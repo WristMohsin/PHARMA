@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
@@ -17,27 +18,26 @@ namespace PHARMA.UI.Forms.Purchase
         private readonly AccountService _accService = new AccountService();
         private readonly ProductService _prodService = new ProductService();
 
-        private List<pur_det> _lines = new List<pur_det>();
-        private Dictionary<string, string> _productNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private Product _pendingProduct;
+        private BindingList<PurLineView> _views = new BindingList<PurLineView>();
         private int _invNo;
         private bool _dirty;
+        private bool _suppressGridEvents;
 
-        private TextBox txtInvNo, txtParty, txtSearch, txtQty, txtRate;
-        private DataGridView dgvItems;
-        private Label lblDate, lblPartyName, lblProduct, lblStock, lblGross, lblNet;
+        private TextBox txtInvNo, txtParty, txtSearch, txtDocRef;
+        private DataGridView dgv;
+        private Label lblDate, lblPartyName, lblGross, lblDisc, lblNet, lblHint;
         private Button btnNew, btnSearch, btnSave, btnClose;
 
         public PurchaseForm()
         {
-            Text = "Purchase Entry";
+            Text = "Purchase";
             KeyPreview = true;
             WindowState = FormWindowState.Maximized;
-            BackColor = Color.FromArgb(250, 248, 240);
-            Font = new Font("Segoe UI", 9.5F);
+            BackColor = Color.FromArgb(255, 250, 240);
+            Font = new Font("Microsoft Sans Serif", 8.25F);
             FormClosing += PurchaseForm_FormClosing;
             BuildUI();
-            NewDoc();
+            NewDoc(true);
             KeyDown += PurchaseForm_KeyDown;
         }
 
@@ -45,9 +45,9 @@ namespace PHARMA.UI.Forms.Purchase
         {
             if (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.ApplicationExitCall)
             {
-                if (_dirty || (_lines != null && _lines.Count > 0))
+                if (_dirty || _views.Count > 0)
                 {
-                    if (!UiStyle.ConfirmClose(this, "Purchase Entry"))
+                    if (!UiStyle.ConfirmClose(this, "Purchase"))
                         e.Cancel = true;
                 }
             }
@@ -55,39 +55,51 @@ namespace PHARMA.UI.Forms.Purchase
 
         private void BuildUI()
         {
-            var tool = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(220, 215, 200) };
-            btnNew = MakeToolBtn("New (F2)", 4, 90);
-            btnSearch = MakeToolBtn("Search (F4)", 100, 100);
-            btnSave = MakeToolBtn("Save (F5)", 210, 90);
-            btnClose = MakeToolBtn("Close (Esc)", 310, 100);
-            btnNew.Click += (s, e) => NewDoc();
-            btnSearch.Click += (s, e) => OpenSearchAndPick(txtSearch.Text.Trim());
-            btnSave.Click += (s, e) => Save();
-            btnClose.Click += (s, e) => Close();
-            tool.Controls.AddRange(new Control[] { btnNew, btnSearch, btnSave, btnClose });
+            var header = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 78,
+                BackColor = Color.FromArgb(255, 248, 230),
+                Padding = new Padding(4)
+            };
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 130, BackColor = Color.FromArgb(245, 240, 225) };
-
-            var lblInv = new Label { Text = "Pur.#", Location = new Point(12, 10), AutoSize = true };
+            int y1 = 6;
+            header.Controls.Add(new Label { Text = "Inv #", Location = new Point(6, y1 + 2), AutoSize = true });
             txtInvNo = new TextBox
             {
-                Location = new Point(60, 7),
-                Size = new Size(80, 24),
+                Location = new Point(40, y1),
+                Size = new Size(70, 20),
                 ReadOnly = true,
-                BackColor = Color.White
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle
             };
-            UiStyle.StyleTextBox(txtInvNo);
+            header.Controls.Add(txtInvNo);
 
+            header.Controls.Add(new Label { Text = "Date", Location = new Point(118, y1 + 2), AutoSize = true });
             lblDate = new Label
             {
-                Location = new Point(160, 10),
+                Location = new Point(150, y1 + 2),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold)
+                Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold)
             };
+            header.Controls.Add(lblDate);
 
-            var lblSup = new Label { Text = "Supplier", Location = new Point(12, 42), AutoSize = true };
-            txtParty = new TextBox { Location = new Point(80, 39), Size = new Size(80, 24) };
-            UiStyle.StyleTextBox(txtParty);
+            header.Controls.Add(new Label { Text = "Doc No", Location = new Point(250, y1 + 2), AutoSize = true });
+            txtDocRef = new TextBox
+            {
+                Location = new Point(300, y1),
+                Size = new Size(90, 20),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            header.Controls.Add(txtDocRef);
+
+            header.Controls.Add(new Label { Text = "Party", Location = new Point(400, y1 + 2), AutoSize = true });
+            txtParty = new TextBox
+            {
+                Location = new Point(435, y1),
+                Size = new Size(60, 20),
+                BorderStyle = BorderStyle.FixedSingle
+            };
             txtParty.Leave += TxtParty_Leave;
             txtParty.KeyDown += (s, e) =>
             {
@@ -98,128 +110,153 @@ namespace PHARMA.UI.Forms.Purchase
                     e.SuppressKeyPress = true;
                 }
             };
+            header.Controls.Add(txtParty);
 
             lblPartyName = new Label
             {
-                Location = new Point(170, 42),
-                AutoSize = true,
-                ForeColor = Color.DarkBlue,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold)
+                Location = new Point(500, y1 + 2),
+                Size = new Size(420, 16),
+                ForeColor = Color.DarkBlue
             };
+            header.Controls.Add(lblPartyName);
 
-            var lblProd = new Label { Text = "Product", Location = new Point(12, 78), AutoSize = true };
+            int y2 = 36;
+            header.Controls.Add(new Label { Text = "Product", Location = new Point(6, y2 + 2), AutoSize = true });
             txtSearch = new TextBox
             {
-                Location = new Point(80, 75),
-                Size = new Size(280, 26),
-                Font = new Font("Consolas", 11F)
+                Location = new Point(55, y2),
+                Size = new Size(320, 22),
+                Font = new Font("Consolas", 9.5F),
+                BorderStyle = BorderStyle.FixedSingle
             };
-            UiStyle.StyleTextBox(txtSearch);
             txtSearch.KeyDown += TxtSearch_KeyDown;
+            header.Controls.Add(txtSearch);
 
-            var lblQty = new Label { Text = "Qty", Location = new Point(370, 78), AutoSize = true };
-            txtQty = new TextBox
+            btnSearch = new Button
             {
-                Location = new Point(400, 75),
-                Size = new Size(60, 26),
-                Text = "1",
-                Font = new Font("Consolas", 11F)
+                Text = "F4 Search",
+                Location = new Point(380, y2 - 1),
+                Size = new Size(80, 24),
+                FlatStyle = FlatStyle.System
             };
-            UiStyle.StyleTextBox(txtQty);
-            txtQty.KeyDown += TxtQty_KeyDown;
+            btnSearch.Click += (s, e) => OpenSearchAndPick(txtSearch.Text.Trim());
+            header.Controls.Add(btnSearch);
 
-            var lblRate = new Label { Text = "Rate", Location = new Point(470, 78), AutoSize = true };
-            txtRate = new TextBox
+            lblHint = new Label
             {
-                Location = new Point(510, 75),
-                Size = new Size(80, 26),
-                Font = new Font("Consolas", 11F)
-            };
-            UiStyle.StyleTextBox(txtRate);
-            txtRate.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Enter)
-                {
-                    txtQty.Focus();
-                    txtQty.SelectAll();
-                    e.SuppressKeyPress = true;
-                }
-            };
-
-            lblProduct = new Label
-            {
-                Location = new Point(600, 42),
-                Size = new Size(360, 20),
-                ForeColor = Color.FromArgb(80, 60, 20)
-            };
-            lblStock = new Label
-            {
-                Location = new Point(600, 78),
-                Size = new Size(360, 20),
-                ForeColor = Color.DarkGreen
-            };
-
-            header.Controls.AddRange(new Control[]
-            {
-                lblInv, txtInvNo, lblDate, lblSup, txtParty, lblPartyName,
-                lblProd, txtSearch, lblQty, txtQty, lblRate, txtRate,
-                lblProduct, lblStock
-            });
-
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Color.FromArgb(235, 230, 215) };
-            lblGross = new Label
-            {
-                Location = new Point(12, 16),
+                Text = "Enter/F4 product -> Qty-P in grid -> Enter  |  F2 New  F5 Save  Del remove  Esc Close",
+                Location = new Point(470, y2 + 4),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold)
+                ForeColor = Color.DimGray
             };
+            header.Controls.Add(lblHint);
+
+            var footer = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 48,
+                BackColor = Color.FromArgb(245, 240, 220)
+            };
+
+            btnNew = new Button { Text = "New (F2)", Location = new Point(8, 10), Size = new Size(78, 28) };
+            btnSave = new Button { Text = "Save (F5)", Location = new Point(92, 10), Size = new Size(78, 28) };
+            btnClose = new Button { Text = "Close (Esc)", Location = new Point(176, 10), Size = new Size(84, 28) };
+            btnNew.Click += (s, e) => NewDoc(false);
+            btnSave.Click += (s, e) => Save();
+            btnClose.Click += (s, e) => Close();
+            footer.Controls.AddRange(new Control[] { btnNew, btnSave, btnClose });
+
+            lblGross = new Label { Location = new Point(280, 6), AutoSize = true };
+            lblDisc = new Label { Location = new Point(280, 24), AutoSize = true };
             lblNet = new Label
             {
-                Location = new Point(280, 10),
+                Location = new Point(420, 12),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 16F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 100, 60)
+                Font = new Font("Microsoft Sans Serif", 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 90, 50)
             };
             footer.Controls.Add(lblGross);
+            footer.Controls.Add(lblDisc);
             footer.Controls.Add(lblNet);
 
-            dgvItems = new DataGridView
+            dgv = new DataGridView
             {
                 Dock = DockStyle.Fill,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
-                ReadOnly = true,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
+                AllowUserToResizeRows = false,
                 RowHeadersVisible = false,
-                BackgroundColor = Color.White
-            };
-            UiStyle.StyleGrid(dgvItems);
-            dgvItems.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Delete)
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                MultiSelect = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.Fixed3D,
+                Font = new Font("Microsoft Sans Serif", 8.25F),
+                ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
                 {
-                    RemoveSelectedLine();
-                    e.Handled = true;
-                }
+                    BackColor = Color.FromArgb(210, 190, 140),
+                    ForeColor = Color.Black,
+                    Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold),
+                    Alignment = DataGridViewContentAlignment.MiddleCenter
+                },
+                EnableHeadersVisualStyles = false,
+                AutoGenerateColumns = false,
+                EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2,
+                StandardTab = true
             };
+            dgv.RowTemplate.Height = 20;
+            dgv.ColumnHeadersHeight = 22;
+            BuildGridColumns();
+            dgv.DataSource = _views;
+            dgv.CellEndEdit += Dgv_CellEndEdit;
+            dgv.CellValidating += Dgv_CellValidating;
+            dgv.KeyDown += Dgv_KeyDown;
+            dgv.DataError += (s, e) => { e.ThrowException = false; };
 
-            Controls.Add(dgvItems);
+            Controls.Add(dgv);
             Controls.Add(footer);
             Controls.Add(header);
-            Controls.Add(tool);
         }
 
-        private Button MakeToolBtn(string text, int x, int w)
+        private void BuildGridColumns()
         {
-            return new Button
+            dgv.Columns.Clear();
+            dgv.Columns.Add(MakeCol("Description", "Description", 180, true));
+            dgv.Columns.Add(MakeCol("Batch", "Batch", 70, true));
+            dgv.Columns.Add(MakeCol("ExpDt", "Exp Dt", 70, true));
+            dgv.Columns.Add(MakeCol("QtyP", "Qty-P", 55, false));
+            dgv.Columns.Add(MakeCol("QtyL", "Qty-L", 50, true));
+            dgv.Columns.Add(MakeCol("Rate", "Rate", 70, false));
+            dgv.Columns.Add(MakeCol("DiscPct", "Disc%", 50, false));
+            dgv.Columns.Add(MakeCol("Free", "Free", 45, false));
+            dgv.Columns.Add(MakeCol("STax", "S.Tax", 55, true));
+            dgv.Columns.Add(MakeCol("NetAmount", "Net Amount", 85, true));
+            dgv.Columns.Add(MakeCol("ATax", "A.Tax", 50, true));
+            dgv.Columns.Add(MakeCol("Code", "Code", 70, true));
+
+            dgv.Columns["QtyP"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["QtyL"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["Rate"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["Rate"].DefaultCellStyle.Format = "N2";
+            dgv.Columns["DiscPct"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["DiscPct"].DefaultCellStyle.Format = "N2";
+            dgv.Columns["NetAmount"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["NetAmount"].DefaultCellStyle.Format = "N2";
+            dgv.Columns["STax"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["STax"].DefaultCellStyle.Format = "N2";
+            dgv.Columns["ATax"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns["ATax"].DefaultCellStyle.Format = "N2";
+        }
+
+        private static DataGridViewTextBoxColumn MakeCol(string prop, string header, int width, bool readOnly)
+        {
+            return new DataGridViewTextBoxColumn
             {
-                Text = text,
-                Location = new Point(x, 4),
-                Size = new Size(w, 28),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(235, 230, 215),
-                Font = new Font("Segoe UI", 8.5F)
+                DataPropertyName = prop,
+                HeaderText = header,
+                Name = prop,
+                Width = width,
+                ReadOnly = readOnly,
+                SortMode = DataGridViewColumnSortMode.NotSortable
             };
         }
 
@@ -233,14 +270,13 @@ namespace PHARMA.UI.Forms.Purchase
                 lblPartyName.ForeColor = Color.DarkBlue;
                 return;
             }
-
             try
             {
                 var a = _accService.Get(code);
                 if (a != null)
                 {
                     string name = a.NAME != null ? a.NAME : (a.dsc != null ? a.dsc : code.ToString());
-                    lblPartyName.Text = name + "  |  Bal: " + a.Balance.ToString("N2");
+                    lblPartyName.Text = name + "   Bal: " + a.Balance.ToString("N2");
                     lblPartyName.ForeColor = Color.DarkBlue;
                 }
                 else
@@ -254,39 +290,31 @@ namespace PHARMA.UI.Forms.Purchase
                 Trace.WriteLine("PurchaseForm: supplier lookup failed: " + ex.Message);
                 lblPartyName.Text = "(lookup error)";
                 lblPartyName.ForeColor = Color.DarkRed;
-                MessageBox.Show("Could not look up supplier. Check database connection.", "Purchase",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
-        private void NewDoc()
+        private void NewDoc(bool force)
         {
-            if (_dirty || (_lines != null && _lines.Count > 0))
+            if (!force && (_dirty || _views.Count > 0))
             {
-                var r = MessageBox.Show(
-                    "Clear current purchase and start a new document?",
-                    "New Purchase",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
+                var r = MessageBox.Show("Clear current purchase and start new?", "New Purchase",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r != DialogResult.Yes) return;
             }
 
-            _lines = new List<pur_det>();
-            _productNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            _pendingProduct = null;
+            _suppressGridEvents = true;
+            _views.Clear();
+            _suppressGridEvents = false;
             _dirty = false;
             _invNo = _svc.NextInvNo();
             txtInvNo.Text = _invNo.ToString();
             lblDate.Text = DateTime.Now.ToString("dd/MM/yyyy");
             txtParty.Text = "0";
+            txtDocRef.Clear();
             lblPartyName.Text = "Cash / Default";
             lblPartyName.ForeColor = Color.DarkBlue;
             txtSearch.Clear();
-            txtQty.Text = "1";
-            txtRate.Clear();
-            lblProduct.Text = "";
-            lblStock.Text = "";
-            RefreshGrid();
+            UpdateTotals();
             txtSearch.Focus();
         }
 
@@ -302,20 +330,18 @@ namespace PHARMA.UI.Forms.Purchase
                     OpenSearchAndPick("");
                     return;
                 }
-
                 try
                 {
                     var p = _svc.FindProduct(q);
                     if (p != null)
-                        SetPending(p);
+                        AddOrFocusProduct(p);
                     else
                         OpenSearchAndPick(q);
                 }
                 catch (Exception ex)
                 {
                     Trace.WriteLine("PurchaseForm: product lookup failed: " + ex.Message);
-                    MessageBox.Show("Product lookup failed. Check database connection.", "Purchase",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Product lookup failed.", "Purchase", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             else if (e.KeyCode == Keys.F4)
@@ -330,155 +356,204 @@ namespace PHARMA.UI.Forms.Purchase
             using (var dlg = new ProductSearchPopup(filter))
             {
                 if (dlg.ShowDialog(this) == DialogResult.OK && dlg.SelectedProduct != null)
-                    SetPending(dlg.SelectedProduct);
+                    AddOrFocusProduct(dlg.SelectedProduct);
             }
         }
 
-        private void SetPending(Product p)
+        private void AddOrFocusProduct(Product p)
         {
             if (p == null) return;
-            _pendingProduct = p;
-            string name = !string.IsNullOrEmpty(p.name1) ? p.name1 : (p.Desc1 ?? p.pcode);
-            txtSearch.Text = name;
-            lblProduct.Text = p.pcode + "  |  " + name;
-            decimal rate = p.Pur_Rate > 0 ? p.Pur_Rate : p.tp;
-            txtRate.Text = rate.ToString("0.####");
-            txtQty.Text = "1";
 
-            int stock = 0;
-            try
+            string name = !string.IsNullOrEmpty(p.name1) ? p.name1 : (p.Desc1 ?? p.pcode);
+            decimal rate = p.Pur_Rate > 0 ? p.Pur_Rate : p.tp;
+
+            PurLineView existing = null;
+            foreach (PurLineView v in _views)
             {
-                stock = _prodService.GetStock(p.pcode);
+                if (string.Equals(v.Code, p.pcode, StringComparison.OrdinalIgnoreCase))
+                {
+                    existing = v;
+                    break;
+                }
             }
-            catch (Exception ex)
+
+            int rowIndex;
+            if (existing != null)
             {
-                Trace.WriteLine("PurchaseForm: stock lookup failed: " + ex.Message);
+                rowIndex = _views.IndexOf(existing);
             }
-            lblStock.Text = "Stock: " + stock + "  |  Cost: " + rate.ToString("N2");
-            txtQty.Focus();
-            txtQty.SelectAll();
+            else
+            {
+                var line = new PurLineView
+                {
+                    Description = name,
+                    Code = p.pcode,
+                    Batch = "",
+                    ExpDt = "",
+                    QtyP = 1,
+                    QtyL = 0,
+                    Rate = rate,
+                    DiscPct = 0,
+                    Free = 0,
+                    STax = 0,
+                    ATax = 0
+                };
+                line.RecalcNet();
+                _views.Add(line);
+                rowIndex = _views.Count - 1;
+            }
+
+            _dirty = true;
+            txtSearch.Clear();
+            UpdateTotals();
+
+            if (rowIndex >= 0 && rowIndex < dgv.Rows.Count)
+            {
+                dgv.Focus();
+                dgv.CurrentCell = dgv.Rows[rowIndex].Cells["QtyP"];
+                dgv.BeginEdit(true);
+            }
         }
 
-        private void TxtQty_KeyDown(object sender, KeyEventArgs e)
+        private void Dgv_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
         {
-            if (e.KeyCode == Keys.Enter)
+            if (_suppressGridEvents) return;
+            if (e.RowIndex < 0) return;
+            string col = dgv.Columns[e.ColumnIndex].Name;
+            string text = e.FormattedValue != null ? e.FormattedValue.ToString().Trim() : "";
+
+            if (col == "QtyP")
+            {
+                int q;
+                if (!int.TryParse(text, out q) || q <= 0)
+                {
+                    MessageBox.Show("Qty-P must be a whole number greater than zero.", "Purchase",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    e.Cancel = true;
+                }
+            }
+            else if (col == "Rate")
+            {
+                decimal r;
+                if (!decimal.TryParse(text, out r) || r < 0)
+                {
+                    MessageBox.Show("Rate cannot be negative.", "Purchase",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    e.Cancel = true;
+                }
+            }
+            else if (col == "DiscPct")
+            {
+                decimal d;
+                if (!decimal.TryParse(text, out d) || d < 0)
+                {
+                    MessageBox.Show("Disc% cannot be negative.", "Purchase",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    e.Cancel = true;
+                }
+            }
+            else if (col == "Free")
+            {
+                int f;
+                if (!int.TryParse(text, out f) || f < 0)
+                {
+                    MessageBox.Show("Free must be zero or a positive whole number.", "Purchase",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    e.Cancel = true;
+                }
+            }
+        }
+
+        private void Dgv_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            if (_suppressGridEvents) return;
+            if (e.RowIndex < 0 || e.RowIndex >= _views.Count) return;
+
+            var line = _views[e.RowIndex];
+            line.RecalcNet();
+            _dirty = true;
+            UpdateTotals();
+            dgv.InvalidateRow(e.RowIndex);
+
+            string col = dgv.Columns[e.ColumnIndex].Name;
+            if (col == "QtyP" || col == "Rate")
+            {
+                BeginInvoke(new Action(delegate
+                {
+                    txtSearch.Focus();
+                }));
+            }
+        }
+
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Delete && !dgv.IsCurrentCellInEditMode)
+            {
+                RemoveSelectedLine();
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Enter && dgv.IsCurrentCellInEditMode)
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-                CommitPendingLine();
+                dgv.EndEdit();
             }
-        }
-
-        private void CommitPendingLine()
-        {
-            if (_pendingProduct == null)
-            {
-                MessageBox.Show("Select a product first (Enter or F4).", "Purchase",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                txtSearch.Focus();
-                return;
-            }
-
-            int qty = 0;
-            if (!int.TryParse(txtQty.Text.Trim(), out qty) || qty <= 0)
-            {
-                MessageBox.Show("Quantity must be a whole number greater than zero.", "Purchase",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtQty.Focus();
-                txtQty.SelectAll();
-                return;
-            }
-
-            decimal rate = 0;
-            if (!decimal.TryParse(txtRate.Text.Trim(), out rate) || rate < 0)
-            {
-                MessageBox.Show("Rate must be a valid number (0 or greater).", "Purchase",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtRate.Focus();
-                txtRate.SelectAll();
-                return;
-            }
-
-            string pcode = _pendingProduct.pcode;
-            string name = !string.IsNullOrEmpty(_pendingProduct.name1)
-                ? _pendingProduct.name1
-                : (_pendingProduct.Desc1 ?? pcode);
-
-            var existing = _lines.FirstOrDefault(x => string.Equals(x.pcode, pcode, StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                existing.qty += qty;
-                existing.rate = rate;
-            }
-            else
-            {
-                _lines.Add(new pur_det
-                {
-                    pcode = pcode,
-                    rate = rate,
-                    qty = qty,
-                    bonus = 0,
-                    SortNo = _lines.Count + 1
-                });
-            }
-
-            if (!_productNames.ContainsKey(pcode))
-                _productNames[pcode] = name;
-            else
-                _productNames[pcode] = name;
-
-            _pendingProduct = null;
-            _dirty = true;
-            txtSearch.Clear();
-            txtQty.Text = "1";
-            txtRate.Clear();
-            lblProduct.Text = "";
-            lblStock.Text = "";
-            RefreshGrid();
-            txtSearch.Focus();
         }
 
         private void RemoveSelectedLine()
         {
-            if (dgvItems.CurrentRow == null || dgvItems.CurrentRow.Index < 0) return;
-            if (dgvItems.CurrentRow.Cells["Code"] == null) return;
-            object codeObj = dgvItems.CurrentRow.Cells["Code"].Value;
-            if (codeObj == null) return;
-            string code = codeObj.ToString();
-            _lines.RemoveAll(x => string.Equals(x.pcode, code, StringComparison.OrdinalIgnoreCase));
-            _productNames.Remove(code);
-            _dirty = _lines.Count > 0;
-            RefreshGrid();
+            if (dgv.CurrentRow == null || dgv.CurrentRow.Index < 0) return;
+            int idx = dgv.CurrentRow.Index;
+            if (idx >= 0 && idx < _views.Count)
+            {
+                _views.RemoveAt(idx);
+                _dirty = _views.Count > 0;
+                UpdateTotals();
+            }
         }
 
-        private void RefreshGrid()
+        private void UpdateTotals()
         {
-            int sr = 1;
-            var rows = _lines.Select(x =>
+            decimal gross = 0;
+            decimal discAmt = 0;
+            foreach (PurLineView v in _views)
             {
-                string desc = _productNames.ContainsKey(x.pcode) ? _productNames[x.pcode] : x.pcode;
-                return new
-                {
-                    Sr = sr++,
-                    Description = desc,
-                    Code = x.pcode,
-                    Qty = x.qty,
-                    Rate = x.rate,
-                    Amount = Math.Round(x.qty * x.rate, 2)
-                };
-            }).ToList();
-
-            dgvItems.DataSource = null;
-            dgvItems.DataSource = rows;
-
-            decimal gross = _lines.Sum(x => x.qty * x.rate);
+                decimal lineGross = v.QtyP * v.Rate;
+                gross += lineGross;
+                discAmt += lineGross * (v.DiscPct / 100m);
+            }
+            decimal net = gross - discAmt;
             lblGross.Text = "Gross: " + gross.ToString("N2");
-            lblNet.Text = "Net: " + gross.ToString("N2");
+            lblDisc.Text = "Disc: " + discAmt.ToString("N2");
+            lblNet.Text = "Net: " + net.ToString("N2");
+        }
+
+        private List<pur_det> BuildDetails()
+        {
+            var list = new List<pur_det>();
+            int sort = 1;
+            foreach (PurLineView v in _views)
+            {
+                list.Add(new pur_det
+                {
+                    pcode = v.Code,
+                    qty = v.QtyP,
+                    rate = v.Rate,
+                    bonus = v.Free,
+                    dip = v.DiscPct,
+                    batchno = string.IsNullOrEmpty(v.Batch) ? null : v.Batch,
+                    SortNo = sort++
+                });
+            }
+            return list;
         }
 
         private void Save()
         {
-            if (_lines.Count == 0)
+            if (dgv.IsCurrentCellInEditMode)
+                dgv.EndEdit();
+
+            if (_views.Count == 0)
             {
                 MessageBox.Show("No items to save.", "Purchase", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
@@ -493,7 +568,7 @@ namespace PHARMA.UI.Forms.Purchase
                     var a = _accService.Get(party);
                     if (a == null)
                     {
-                        MessageBox.Show("Invalid supplier code. Correct it or use 0 for Cash/Default.", "Purchase",
+                        MessageBox.Show("Invalid supplier code. Use 0 for Cash/Default.", "Purchase",
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         txtParty.Focus();
                         return;
@@ -502,43 +577,47 @@ namespace PHARMA.UI.Forms.Purchase
                 catch (Exception ex)
                 {
                     Trace.WriteLine("PurchaseForm: supplier validation failed: " + ex.Message);
-                    MessageBox.Show("Could not validate supplier. Check database connection.", "Purchase",
+                    MessageBox.Show("Could not validate supplier.", "Purchase",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
             }
+
+            var details = BuildDetails();
+            decimal gross = details.Sum(x => x.qty * x.rate);
+            decimal discAmt = details.Sum(x => x.qty * x.rate * (x.dip / 100m));
 
             var header = new purchase
             {
                 invno = _invNo,
                 invdt = DateTime.Now,
                 code = party,
-                grsamt = _lines.Sum(x => x.qty * x.rate),
-                net = _lines.Sum(x => x.qty * x.rate),
+                grsamt = gross,
+                disc = discAmt,
+                net = gross - discAmt,
                 type = 1,
                 Operator = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : ""
             };
 
             string error;
-            if (!_svc.Save(header, _lines, out error))
+            if (!_svc.Save(header, details, out error))
             {
                 MessageBox.Show(error ?? "Save failed.", "Purchase", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            MessageBox.Show("Purchase saved. Invoice #: " + _invNo, "Purchase",
+            MessageBox.Show("Purchase saved. Inv #: " + _invNo, "Purchase",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             _dirty = false;
-            _lines.Clear();
-            _productNames.Clear();
-            NewDoc();
+            _views.Clear();
+            NewDoc(true);
         }
 
         private void PurchaseForm_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.F2)
             {
-                NewDoc();
+                NewDoc(false);
                 e.Handled = true;
             }
             else if (e.KeyCode == Keys.F4)
@@ -555,6 +634,29 @@ namespace PHARMA.UI.Forms.Purchase
             {
                 Close();
                 e.Handled = true;
+            }
+        }
+
+        private sealed class PurLineView
+        {
+            public string Description { get; set; }
+            public string Batch { get; set; }
+            public string ExpDt { get; set; }
+            public int QtyP { get; set; }
+            public int QtyL { get; set; }
+            public decimal Rate { get; set; }
+            public decimal DiscPct { get; set; }
+            public int Free { get; set; }
+            public decimal STax { get; set; }
+            public decimal NetAmount { get; set; }
+            public decimal ATax { get; set; }
+            public string Code { get; set; }
+
+            public void RecalcNet()
+            {
+                decimal g = QtyP * Rate;
+                decimal d = g * (DiscPct / 100m);
+                NetAmount = Math.Round(g - d, 2);
             }
         }
     }
