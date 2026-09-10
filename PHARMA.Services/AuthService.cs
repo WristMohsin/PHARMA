@@ -21,23 +21,51 @@ namespace PHARMA.Services
 
         public bool Login(string username, string password)
         {
-            var user = _repo.ValidateUser(username, password);
-            if (user == null) return false;
+            ClearSession();
 
-            CurrentUser = user;
+            if (string.IsNullOrEmpty(username) || password == null)
+                return false;
+
+            UserData user;
             try
             {
-                CurrentRights = _repo.GetUserRights(username) ?? new List<UserRights>();
+                user = _repo.ValidateUser(username.Trim(), password);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("AuthService.Login ValidateUser failed: " + ex.Message);
+                ClearSession();
+                throw;
+            }
+
+            if (user == null || string.IsNullOrEmpty(user.UserName))
+            {
+                ClearSession();
+                return false;
+            }
+
+            CurrentUser = user;
+
+            try
+            {
+                string rightsKey = CurrentUser.RightsKey;
+                CurrentRights = _repo.GetUserRights(rightsKey) ?? new List<UserRights>();
             }
             catch (Exception ex)
             {
                 Trace.WriteLine("AuthService.Login GetUserRights failed: " + ex.Message);
                 CurrentRights = new List<UserRights>();
             }
+
             return true;
         }
 
         public void Logout()
+        {
+            ClearSession();
+        }
+
+        private static void ClearSession()
         {
             CurrentUser = null;
             CurrentRights = new List<UserRights>();
@@ -45,9 +73,9 @@ namespace PHARMA.Services
 
         public bool IsAdmin()
         {
-            return CurrentUser != null
-                && CurrentUser.SecurityLevel != null
-                && string.Equals(CurrentUser.SecurityLevel, "Admin", StringComparison.OrdinalIgnoreCase);
+            if (CurrentUser == null) return false;
+            if (string.IsNullOrEmpty(CurrentUser.SecurityLevel)) return false;
+            return string.Equals(CurrentUser.SecurityLevel, "Admin", StringComparison.OrdinalIgnoreCase);
         }
 
         public bool HasRight(string menuTitle, string optionTitle = null)
