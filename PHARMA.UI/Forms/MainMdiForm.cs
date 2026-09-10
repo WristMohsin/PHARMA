@@ -27,7 +27,8 @@ namespace PHARMA.UI.Forms
             WindowState = FormWindowState.Maximized;
             KeyPreview = true;
             BackColor = Color.FromArgb(245, 247, 250);
-            try { BuildMenus(); } catch { BuildHardcodedMenu(); }
+            try { BuildMenus(); }
+            catch (Exception ex) { statusLabel.Text = "Menu: " + ex.Message; }
             ShowDashboard();
             UpdateStatus();
             FormClosing += MainMdiForm_FormClosing;
@@ -54,12 +55,7 @@ namespace PHARMA.UI.Forms
         private void BuildMenus()
         {
             menuStrip1.Items.Clear();
-            BuildHardcodedMenu();
-            try { MenuBuilder.Build(menuStrip1, _auth, OpenModule); } catch { }
-        }
 
-        private void BuildHardcodedMenu()
-        {
             var file = new ToolStripMenuItem("&File");
             var exit = new ToolStripMenuItem("E&xit");
             exit.ShortcutKeys = Keys.Alt | Keys.F4;
@@ -67,48 +63,15 @@ namespace PHARMA.UI.Forms
             file.DropDownItems.Add(exit);
             menuStrip1.Items.Add(file);
 
-            var sale = new ToolStripMenuItem("&Sale");
-            var pos = new ToolStripMenuItem("&POS / Billing");
-            pos.ShortcutKeys = Keys.Control | Keys.S;
-            pos.Click += (s, e) => OpenChild(new PosForm());
-            var hist = new ToolStripMenuItem("Sale &History");
-            hist.Click += (s, e) => OpenChild(new SaleListForm());
-            var ret = new ToolStripMenuItem("Sale &Return");
-            ret.Click += (s, e) => OpenChild(new SaleReturnForm());
-            sale.DropDownItems.Add(pos);
-            sale.DropDownItems.Add(hist);
-            sale.DropDownItems.Add(ret);
-            menuStrip1.Items.Add(sale);
-
-            var pur = new ToolStripMenuItem("&Purchase");
-            var purEntry = new ToolStripMenuItem("&Purchase Entry");
-            purEntry.ShortcutKeys = Keys.Control | Keys.P;
-            purEntry.Click += (s, e) => OpenChild(new PurchaseForm());
-            pur.DropDownItems.Add(purEntry);
-            menuStrip1.Items.Add(pur);
-
-            var inv = new ToolStripMenuItem("&Inventory");
-            var products = new ToolStripMenuItem("&Products");
-            products.ShortcutKeys = Keys.Control | Keys.I;
-            products.Click += (s, e) => OpenChild(new ProductListForm());
-            inv.DropDownItems.Add(products);
-            menuStrip1.Items.Add(inv);
-
-            var acc = new ToolStripMenuItem("&Accounts");
-            var parties = new ToolStripMenuItem("&Parties / Accounts");
-            parties.ShortcutKeys = Keys.Control | Keys.A;
-            parties.Click += (s, e) => OpenChild(new AccountListForm());
-            var pay = new ToolStripMenuItem("&Payment / Receipt");
-            pay.Click += (s, e) => OpenChild(new PaymentForm());
-            acc.DropDownItems.Add(parties);
-            acc.DropDownItems.Add(pay);
-            menuStrip1.Items.Add(acc);
-
-            var mst = new ToolStripMenuItem("&Masters");
-            var cmp = new ToolStripMenuItem("&Companies");
-            cmp.Click += (s, e) => OpenChild(new CompanyListForm());
-            mst.DropDownItems.Add(cmp);
-            menuStrip1.Items.Add(mst);
+            // Primary: MenuName + UserRights (or ModuleCatalog filtered by rights)
+            try
+            {
+                MenuBuilder.Build(menuStrip1, _auth, OpenModule);
+            }
+            catch (Exception ex)
+            {
+                statusLabel.Text = "Menu load error: " + ex.Message;
+            }
 
             var help = new ToolStripMenuItem("&Help");
             var sc = new ToolStripMenuItem("&Shortcuts (F1)");
@@ -159,17 +122,17 @@ namespace PHARMA.UI.Forms
             stats.Location = new Point(40, 115);
 
             int y = 170;
-            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, delegate { OpenChild(new PosForm()); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Purchase Entry", "Ctrl+P", 340, y, delegate { OpenChild(new PurchaseForm()); }));
+            _welcomePanel.Controls.Add(MakeBigButton("POS / Billing", "Ctrl+S", 40, y, delegate { OpenModule("POS"); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Purchase Entry", "Ctrl+P", 340, y, delegate { OpenModule("PURCHASE"); }));
             y += 70;
-            _welcomePanel.Controls.Add(MakeBigButton("Products / Stock", "Ctrl+I", 40, y, delegate { OpenChild(new ProductListForm()); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Parties / Accounts", "Ctrl+A", 340, y, delegate { OpenChild(new AccountListForm()); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Products / Stock", "Ctrl+I", 40, y, delegate { OpenModule("PRODUCTS"); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Parties / Accounts", "Ctrl+A", 340, y, delegate { OpenModule("ACCOUNTS"); }));
             y += 70;
-            _welcomePanel.Controls.Add(MakeBigButton("Sale History", "", 40, y, delegate { OpenChild(new SaleListForm()); }));
-            _welcomePanel.Controls.Add(MakeBigButton("Sale Return", "", 340, y, delegate { OpenChild(new SaleReturnForm()); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Sale History", "", 40, y, delegate { OpenModule("SALE_HISTORY"); }));
+            _welcomePanel.Controls.Add(MakeBigButton("Sale Return", "", 340, y, delegate { OpenModule("SALE_RETURN"); }));
 
             var hint = new Label();
-            hint.Text = "Menu: File | Sale | Purchase | Inventory | Accounts | Masters | Help\nChild windows open on top — close them to return here.";
+            hint.Text = "Menus load from UserRights. Close child windows to return here.";
             hint.Font = new Font("Segoe UI", 10F);
             hint.ForeColor = Color.DimGray;
             hint.AutoSize = true;
@@ -247,14 +210,28 @@ namespace PHARMA.UI.Forms
         private void OpenModule(string key)
         {
             if (string.IsNullOrEmpty(key)) return;
-            key = key.ToUpperInvariant();
-            if (key.Contains("POS") || key.Contains("BILL")) OpenChild(new PosForm());
-            else if (key.Contains("PUR")) OpenChild(new PurchaseForm());
-            else if (key.Contains("PROD") || key.Contains("STOCK")) OpenChild(new ProductListForm());
-            else if (key.Contains("ACC") || key.Contains("PARTY")) OpenChild(new AccountListForm());
-            else if (key.Contains("RETURN")) OpenChild(new SaleReturnForm());
-            else if (key.Contains("HIST") || key.Contains("SALE")) OpenChild(new SaleListForm());
-            else MessageBox.Show("Module: " + key, "PHARMA");
+            key = key.ToUpperInvariant().Trim();
+
+            if (key == "POS" || key.Contains("BILL"))
+                OpenChild(new PosForm());
+            else if (key == "SALE_RETURN" || key.Contains("RETURN"))
+                OpenChild(new SaleReturnForm());
+            else if (key == "SALE_HISTORY" || key.Contains("HIST"))
+                OpenChild(new SaleListForm());
+            else if (key == "PURCHASE" || key.Contains("PUR"))
+                OpenChild(new PurchaseForm());
+            else if (key == "PRODUCTS" || key.Contains("PROD") || key.Contains("STOCK"))
+                OpenChild(new ProductListForm());
+            else if (key == "PAYMENT" || key.Contains("PAYMENT") || key.Contains("RECEIPT"))
+                OpenChild(new PaymentForm());
+            else if (key == "ACCOUNTS" || key.Contains("ACC") || key.Contains("PARTY"))
+                OpenChild(new AccountListForm());
+            else if (key == "COMPANIES" || key.Contains("COMPANY"))
+                OpenChild(new CompanyListForm());
+            else if (key.Contains("SALE") || key.Contains("POS"))
+                OpenChild(new PosForm());
+            else
+                MessageBox.Show("No form mapped for module: " + key, "PHARMA");
         }
 
         private void OpenChild(Form child)
@@ -303,10 +280,10 @@ namespace PHARMA.UI.Forms
 
         private void MainMdiForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.S) { OpenChild(new PosForm()); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.P) { OpenChild(new PurchaseForm()); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.I) { OpenChild(new ProductListForm()); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.A) { OpenChild(new AccountListForm()); e.Handled = true; }
+            if (e.Control && e.KeyCode == Keys.S) { OpenModule("POS"); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.P) { OpenModule("PURCHASE"); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.I) { OpenModule("PRODUCTS"); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.A) { OpenModule("ACCOUNTS"); e.Handled = true; }
             else if (e.KeyCode == Keys.F1) { ShowHelp(); e.Handled = true; }
         }
     }
