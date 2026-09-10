@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using PHARMA.DataAccess.Repositories;
 using PHARMA.Models;
@@ -28,8 +29,9 @@ namespace PHARMA.Services
             {
                 CurrentRights = _repo.GetUserRights(username) ?? new List<UserRights>();
             }
-            catch
+            catch (Exception ex)
             {
+                Trace.WriteLine("AuthService.Login GetUserRights failed: " + ex.Message);
                 CurrentRights = new List<UserRights>();
             }
             return true;
@@ -53,8 +55,9 @@ namespace PHARMA.Services
             if (CurrentUser == null) return false;
             if (IsAdmin()) return true;
 
-            return CurrentRights.Any(r =>
-                (r.YNO == "Y" || r.YNO == "1") &&
+            var rights = CurrentRights ?? new List<UserRights>();
+            return rights.Any(r =>
+                IsAllowedFlag(r.YNO) &&
                 string.Equals(r.MenuTitle, menuTitle, StringComparison.OrdinalIgnoreCase) &&
                 (optionTitle == null
                     || string.Equals(r.OptionTitle, optionTitle, StringComparison.OrdinalIgnoreCase)
@@ -65,13 +68,113 @@ namespace PHARMA.Services
         {
             if (CurrentUser == null) return false;
             if (IsAdmin()) return true;
-            if (string.IsNullOrEmpty(moduleKey)) return false;
 
-            return CurrentRights.Any(r =>
-                (r.YNO == "Y" || r.YNO == "1") &&
-                (string.Equals(r.OptionVariable, moduleKey, StringComparison.OrdinalIgnoreCase)
-                 || string.Equals(r.OptionTitle, moduleKey, StringComparison.OrdinalIgnoreCase)
-                 || (r.MenuTitle != null && r.MenuTitle.IndexOf(moduleKey, StringComparison.OrdinalIgnoreCase) >= 0)));
+            string key = NormalizeModuleKey(moduleKey);
+            if (string.IsNullOrEmpty(key)) return false;
+
+            var rights = CurrentRights;
+            if (rights == null || rights.Count == 0)
+                return false;
+
+            if (rights.Any(r => IsAllowedFlag(r.YNO) &&
+                string.Equals(r.OptionVariable, key, StringComparison.OrdinalIgnoreCase)))
+                return true;
+
+            string menuTitle = null;
+            string optionTitle = null;
+            if (TryGetCatalogTitles(key, out menuTitle, out optionTitle))
+            {
+                if (rights.Any(r => IsAllowedFlag(r.YNO) &&
+                    string.Equals(r.MenuTitle, menuTitle, StringComparison.OrdinalIgnoreCase) &&
+                    (string.IsNullOrEmpty(r.OptionTitle)
+                     || string.Equals(r.OptionTitle, optionTitle, StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(r.OptionVariable, key, StringComparison.OrdinalIgnoreCase))))
+                    return true;
+            }
+
+            if (rights.Any(r => IsAllowedFlag(r.YNO) &&
+                string.Equals(r.OptionTitle, key, StringComparison.OrdinalIgnoreCase)))
+                return true;
+
+            return false;
+        }
+
+        public static string NormalizeModuleKey(string moduleKey)
+        {
+            if (string.IsNullOrEmpty(moduleKey)) return string.Empty;
+
+            string raw = moduleKey.Trim();
+            string k = raw.ToUpperInvariant();
+
+            if (k == "POS" || k == "SALE_HISTORY" || k == "SALE_RETURN" || k == "PURCHASE"
+                || k == "PRODUCTS" || k == "ACCOUNTS" || k == "PAYMENT" || k == "COMPANIES")
+                return k;
+
+            if (string.Equals(raw, "POS / Billing", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "POS/Billing", StringComparison.OrdinalIgnoreCase)
+                || k == "BILLING")
+                return "POS";
+
+            if (string.Equals(raw, "Sale History", StringComparison.OrdinalIgnoreCase)
+                || k == "HISTORY" || k == "SALEHISTORY")
+                return "SALE_HISTORY";
+
+            if (string.Equals(raw, "Sale Return", StringComparison.OrdinalIgnoreCase)
+                || k == "RETURN" || k == "SALERETURN")
+                return "SALE_RETURN";
+
+            if (string.Equals(raw, "Purchase Entry", StringComparison.OrdinalIgnoreCase)
+                || k == "PUR" || k == "PURCHASE_ENTRY")
+                return "PURCHASE";
+
+            if (string.Equals(raw, "Products", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "Products / Stock", StringComparison.OrdinalIgnoreCase)
+                || k == "STOCK" || k == "PRODUCT" || k == "INVENTORY")
+                return "PRODUCTS";
+
+            if (string.Equals(raw, "Parties / Accounts", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "Parties", StringComparison.OrdinalIgnoreCase)
+                || k == "PARTY" || k == "PARTIES")
+                return "ACCOUNTS";
+
+            if (string.Equals(raw, "Payment / Receipt", StringComparison.OrdinalIgnoreCase)
+                || k == "RECEIPT" || k == "PAYMENT_RECEIPT")
+                return "PAYMENT";
+
+            if (string.Equals(raw, "Companies", StringComparison.OrdinalIgnoreCase)
+                || k == "COMPANY")
+                return "COMPANIES";
+
+            k = k.Replace(" ", "_").Replace("/", "_").Replace("-", "_");
+            if (k == "POS_BILLING" || k == "SALE_BILLING") return "POS";
+            if (k == "SALE_HISTORY" || k == "SALE_RETURN" || k == "PURCHASE"
+                || k == "PRODUCTS" || k == "ACCOUNTS" || k == "PAYMENT" || k == "COMPANIES" || k == "POS")
+                return k;
+
+            return k;
+        }
+
+        private static bool TryGetCatalogTitles(string key, out string menuTitle, out string optionTitle)
+        {
+            menuTitle = null;
+            optionTitle = null;
+            switch (key)
+            {
+                case "POS": menuTitle = "Sale"; optionTitle = "POS / Billing"; return true;
+                case "SALE_HISTORY": menuTitle = "Sale"; optionTitle = "Sale History"; return true;
+                case "SALE_RETURN": menuTitle = "Sale"; optionTitle = "Sale Return"; return true;
+                case "PURCHASE": menuTitle = "Purchase"; optionTitle = "Purchase Entry"; return true;
+                case "PRODUCTS": menuTitle = "Inventory"; optionTitle = "Products"; return true;
+                case "ACCOUNTS": menuTitle = "Accounts"; optionTitle = "Parties / Accounts"; return true;
+                case "PAYMENT": menuTitle = "Accounts"; optionTitle = "Payment / Receipt"; return true;
+                case "COMPANIES": menuTitle = "Masters"; optionTitle = "Companies"; return true;
+                default: return false;
+            }
+        }
+
+        private static bool IsAllowedFlag(string yno)
+        {
+            return yno == "Y" || yno == "1" || string.Equals(yno, "Yes", StringComparison.OrdinalIgnoreCase);
         }
 
         public IEnumerable<MenuName> GetMenusForUser()
@@ -81,8 +184,9 @@ namespace PHARMA.Services
             {
                 all = _repo.GetAllMenus() ?? new List<MenuName>();
             }
-            catch
+            catch (Exception ex)
             {
+                Trace.WriteLine("AuthService.GetMenusForUser failed: " + ex.Message);
                 return Enumerable.Empty<MenuName>();
             }
 
@@ -95,9 +199,9 @@ namespace PHARMA.Services
             var allowedVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var allowedPairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var r in CurrentRights)
+            foreach (var r in CurrentRights ?? new List<UserRights>())
             {
-                if (r.YNO != "Y" && r.YNO != "1") continue;
+                if (!IsAllowedFlag(r.YNO)) continue;
                 if (!string.IsNullOrEmpty(r.OptionVariable))
                     allowedVars.Add(r.OptionVariable);
                 allowedPairs.Add((r.MenuTitle ?? "") + "|" + (r.OptionTitle ?? ""));
