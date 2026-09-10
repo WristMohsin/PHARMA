@@ -24,7 +24,14 @@ namespace PHARMA.Services
             if (user == null) return false;
 
             CurrentUser = user;
-            CurrentRights = _repo.GetUserRights(username);
+            try
+            {
+                CurrentRights = _repo.GetUserRights(username) ?? new List<UserRights>();
+            }
+            catch
+            {
+                CurrentRights = new List<UserRights>();
+            }
             return true;
         }
 
@@ -34,34 +41,73 @@ namespace PHARMA.Services
             CurrentRights = new List<UserRights>();
         }
 
+        public bool IsAdmin()
+        {
+            return CurrentUser != null
+                && CurrentUser.SecurityLevel != null
+                && string.Equals(CurrentUser.SecurityLevel, "Admin", StringComparison.OrdinalIgnoreCase);
+        }
+
         public bool HasRight(string menuTitle, string optionTitle = null)
         {
             if (CurrentUser == null) return false;
-            // Admin bypass
-            if (CurrentUser.SecurityLevel != null &&
-                string.Equals(CurrentUser.SecurityLevel, "Admin", StringComparison.OrdinalIgnoreCase))
-                return true;
+            if (IsAdmin()) return true;
 
             return CurrentRights.Any(r =>
+                (r.YNO == "Y" || r.YNO == "1") &&
                 string.Equals(r.MenuTitle, menuTitle, StringComparison.OrdinalIgnoreCase) &&
-                (optionTitle == null || string.Equals(r.OptionTitle, optionTitle, StringComparison.OrdinalIgnoreCase)) &&
-                (r.YNO == "Y" || r.YNO == "1"));
+                (optionTitle == null
+                    || string.Equals(r.OptionTitle, optionTitle, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(r.OptionVariable, optionTitle, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        public bool HasModuleRight(string moduleKey)
+        {
+            if (CurrentUser == null) return false;
+            if (IsAdmin()) return true;
+            if (string.IsNullOrEmpty(moduleKey)) return false;
+
+            return CurrentRights.Any(r =>
+                (r.YNO == "Y" || r.YNO == "1") &&
+                (string.Equals(r.OptionVariable, moduleKey, StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(r.OptionTitle, moduleKey, StringComparison.OrdinalIgnoreCase)
+                 || (r.MenuTitle != null && r.MenuTitle.IndexOf(moduleKey, StringComparison.OrdinalIgnoreCase) >= 0)));
         }
 
         public IEnumerable<MenuName> GetMenusForUser()
         {
-            var all = _repo.GetAllMenus();
-            if (CurrentUser != null && CurrentUser.SecurityLevel != null &&
-                string.Equals(CurrentUser.SecurityLevel, "Admin", StringComparison.OrdinalIgnoreCase))
+            List<MenuName> all;
+            try
+            {
+                all = _repo.GetAllMenus() ?? new List<MenuName>();
+            }
+            catch
+            {
+                return Enumerable.Empty<MenuName>();
+            }
+
+            if (all.Count == 0)
+                return Enumerable.Empty<MenuName>();
+
+            if (IsAdmin())
                 return all;
 
-            var allowed = new HashSet<string>(
-                CurrentRights.Select(r => (r.MenuTitle ?? "") + "|" + (r.OptionTitle ?? "")),
-                StringComparer.OrdinalIgnoreCase);
+            var allowedVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allowedPairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var r in CurrentRights)
+            {
+                if (r.YNO != "Y" && r.YNO != "1") continue;
+                if (!string.IsNullOrEmpty(r.OptionVariable))
+                    allowedVars.Add(r.OptionVariable);
+                allowedPairs.Add((r.MenuTitle ?? "") + "|" + (r.OptionTitle ?? ""));
+                allowedPairs.Add((r.MenuTitle ?? "") + "|");
+            }
 
             return all.Where(m =>
-                allowed.Contains((m.MenuTitle ?? "") + "|" + (m.OptionTitle ?? "")) ||
-                allowed.Contains((m.MenuTitle ?? "") + "|"));
+                (!string.IsNullOrEmpty(m.OptionVariable) && allowedVars.Contains(m.OptionVariable))
+                || allowedPairs.Contains((m.MenuTitle ?? "") + "|" + (m.OptionTitle ?? ""))
+                || allowedPairs.Contains((m.MenuTitle ?? "") + "|"));
         }
     }
 }
