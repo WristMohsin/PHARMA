@@ -1,7 +1,9 @@
 namespace PHARMA.Models
 {
     /// <summary>
-    /// Maps to dbo.UserData
+    /// Authenticated user identity. Primary source: dbo.UserData.
+    /// UserName is the rights key (UserRights.UserName).
+    /// SecurityLevel drives Admin detection — never inferred from username text.
     /// </summary>
     public class UserData
     {
@@ -18,5 +20,20 @@ namespace PHARMA.Models
         public string BarCodeMode { get; set; }
         public string AdminDiscLevel { get; set; }
         public string SupAC { get; set; }
+
+        public string DisplayName { get; set; }
+        public string Company { get; set; }
+        public string Grcd { get; set; }
+
+        public string RightsKey
+        {
+            get { return UserName; }
+        }
+
+        public string GetDisplayName()
+        {
+            if (!string.IsNullOrEmpty(DisplayName)) return DisplayName;
+            return UserName ?? string.Empty;
+        }
     }
 }

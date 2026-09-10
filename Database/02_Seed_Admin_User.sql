@@ -1,11 +1,28 @@
 USE PharmaZ;
 GO
-IF NOT EXISTS (SELECT 1 FROM UserData WHERE UserName = 'admin')
-  INSERT INTO UserData (UserName, PassWord, SecurityLevel, Openrate, OpenDisc, OpenBonus, CheckCostRate, F3, F8, BarCodeMode, AdminDiscLevel, SupAC)
-  VALUES ('admin', 'admin', 'Admin', 'Y', 'Y', 'Y', 'N', 'Y', 'Y', 'Y', 'Y', 'Y');
+
+IF OBJECT_ID('dbo.UserData','U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM dbo.UserData WHERE UserName = 'admin')
+    BEGIN
+        INSERT INTO dbo.UserData (UserName, PassWord, SecurityLevel)
+        VALUES ('admin', 'admin', 'Admin');
+        PRINT 'Inserted UserData admin with SecurityLevel=Admin';
+    END
+    ELSE
+    BEGIN
+        UPDATE dbo.UserData
+        SET SecurityLevel = 'Admin'
+        WHERE UserName = 'admin'
+          AND (SecurityLevel IS NULL OR LTRIM(RTRIM(SecurityLevel)) = '');
+        PRINT 'Ensured UserData admin SecurityLevel=Admin when empty';
+    END
+END
 GO
-IF NOT EXISTS (SELECT 1 FROM usertable WHERE Username = 'admin')
-  INSERT INTO usertable (Username, Password, Company, Grcd) VALUES ('admin', 'admin', '01', '1');
-GO
-PRINT 'Admin user ready: admin / admin';
+
+IF OBJECT_ID('dbo.usertable','U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM dbo.usertable WHERE Username = 'admin')
+        INSERT INTO dbo.usertable (Username, Password) VALUES ('admin', 'admin');
+END
 GO
