@@ -10,15 +10,17 @@ namespace PHARMA.UI.Forms.Management
     public class AccountEditorForm : Form
     {
         private readonly AccountService _svc = new AccountService();
-        private readonly bool _isNew;
-        private readonly int _editCode;
+        private bool _isNew;
+        private int _editCode;
 
         private TextBox txtCode, txtName, txtMain, txtScode, txtBalance, txtPhone, txtMobile;
         private ComboBox cboType;
         private CheckBox chkActive, chkSys;
         private Button btnSave, btnCancel;
         private Label lblError;
+        private Label lblBalanceCaption;
         private bool _dirty;
+        private bool _suppressCodeLookup;
 
         public int SavedCode { get; private set; }
 
@@ -59,6 +61,17 @@ namespace PHARMA.UI.Forms.Management
 
         private void AccountEditorForm_Shown(object sender, EventArgs e)
         {
+            if (_isNew && txtCode != null && txtCode.CanFocus)
+            {
+                txtCode.Focus();
+                txtCode.SelectAll();
+            }
+            else
+                FocusName();
+        }
+
+        private void FocusName()
+        {
             if (txtName != null && !txtName.IsDisposed && txtName.CanFocus)
             {
                 txtName.Focus();
@@ -71,6 +84,8 @@ namespace PHARMA.UI.Forms.Management
             int y = 14;
             Controls.Add(L("Code", 16, y + 2));
             txtCode = Tb(110, y, 100);
+            txtCode.Leave += TxtCode_Leave;
+            txtCode.KeyDown += TxtCode_KeyDown;
             Controls.Add(txtCode);
 
             y += 30;
@@ -100,7 +115,8 @@ namespace PHARMA.UI.Forms.Management
             Controls.Add(txtScode);
 
             y += 30;
-            Controls.Add(L(_isNew ? "Opening Bal." : "Balance", 16, y + 2));
+            lblBalanceCaption = L(_isNew ? "Opening Bal." : "Balance", 16, y + 2);
+            Controls.Add(lblBalanceCaption);
             txtBalance = Tb(110, y, 120);
             Controls.Add(txtBalance);
 
@@ -144,7 +160,7 @@ namespace PHARMA.UI.Forms.Management
             chkActive.CheckedChanged += mark;
             chkSys.CheckedChanged += mark;
 
-            foreach (Control c in new Control[] { txtCode, txtName, txtMain, txtScode, txtBalance, txtPhone, txtMobile })
+            foreach (Control c in new Control[] { txtName, txtMain, txtScode, txtBalance, txtPhone, txtMobile })
             {
                 var tb = c as TextBox;
                 if (tb != null) tb.KeyDown += Field_KeyDown;
@@ -163,6 +179,7 @@ namespace PHARMA.UI.Forms.Management
 
         private void LoadNewDefaults()
         {
+            _suppressCodeLookup = true;
             txtCode.ReadOnly = false;
             txtCode.BackColor = Color.White;
             try { txtCode.Text = _svc.NextCode().ToString(); }
@@ -175,6 +192,7 @@ namespace PHARMA.UI.Forms.Management
             cboType.SelectedIndex = 0;
             txtMain.Clear();
             txtScode.Text = "0";
+            if (lblBalanceCaption != null) lblBalanceCaption.Text = "Opening Bal.";
             txtBalance.ReadOnly = false;
             txtBalance.BackColor = Color.White;
             txtBalance.Text = "0.00";
@@ -183,10 +201,13 @@ namespace PHARMA.UI.Forms.Management
             chkActive.Checked = true;
             chkSys.Checked = false;
             _dirty = false;
+            _suppressCodeLookup = false;
         }
 
         private void LoadExisting(Account a)
         {
+            if (a == null) return;
+            _suppressCodeLookup = true;
             txtCode.Text = a.acno.ToString();
             txtCode.ReadOnly = true;
             txtCode.BackColor = Color.WhiteSmoke;
@@ -194,6 +215,7 @@ namespace PHARMA.UI.Forms.Management
             SetType(a.Partytype);
             txtMain.Text = a.Main ?? "";
             txtScode.Text = a.Scode.ToString();
+            if (lblBalanceCaption != null) lblBalanceCaption.Text = "Balance";
             txtBalance.Text = a.Balance.ToString("N2");
             txtBalance.ReadOnly = true;
             txtBalance.BackColor = Color.WhiteSmoke;
@@ -202,6 +224,61 @@ namespace PHARMA.UI.Forms.Management
             chkActive.Checked = !string.Equals(a.StopTrans, "Y", StringComparison.OrdinalIgnoreCase);
             chkSys.Checked = !string.IsNullOrWhiteSpace(a.SysAc) && a.SysAc.Trim() != "";
             _dirty = false;
+            _suppressCodeLookup = false;
+        }
+
+        private void SwitchToEditMode(Account existing)
+        {
+            _isNew = false;
+            _editCode = existing.acno;
+            Text = "Edit Account";
+            LoadExisting(existing);
+            ClearError();
+            FocusName();
+        }
+
+        private void TryLookupExistingCode()
+        {
+            if (_suppressCodeLookup) return;
+            if (!_isNew) return;
+            if (txtCode.ReadOnly) return;
+
+            string raw = txtCode.Text.Trim();
+            if (string.IsNullOrEmpty(raw)) return;
+
+            int code;
+            if (!int.TryParse(raw, out code) || code <= 0)
+                return;
+
+            try
+            {
+                Account existing = _svc.Get(code);
+                if (existing == null)
+                    return;
+                SwitchToEditMode(existing);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("AccountEditorForm.TryLookupExistingCode: " + ex.Message);
+                ShowError("Could not look up account code. Check the connection and try again.", txtCode);
+            }
+        }
+
+        private void TxtCode_Leave(object sender, EventArgs e)
+        {
+            TryLookupExistingCode();
+        }
+
+        private void TxtCode_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                e.Handled = true;
+                TryLookupExistingCode();
+                if (_isNew)
+                    SelectNextControl(txtCode, true, true, true, true);
+            }
         }
 
         private void SetType(string code)
@@ -266,6 +343,9 @@ namespace PHARMA.UI.Forms.Management
         private void Save()
         {
             ClearError();
+            if (_isNew && !txtCode.ReadOnly)
+                TryLookupExistingCode();
+
             int code;
             if (!int.TryParse(txtCode.Text.Trim(), out code) || code <= 0)
             { ShowError("Account code must be a positive whole number.", txtCode); return; }
@@ -292,12 +372,17 @@ namespace PHARMA.UI.Forms.Management
             if (phone.Length > 25) { ShowError("Phone cannot exceed 25 characters.", txtPhone); return; }
             if (mobile.Length > 50) { ShowError("Mobile cannot exceed 50 characters.", txtMobile); return; }
 
-            if (_isNew || code != _editCode)
+            if (_isNew)
             {
                 try
                 {
                     Account existing = _svc.Get(code);
-                    if (existing != null) { ShowError("Account code already exists: " + code, txtCode); return; }
+                    if (existing != null)
+                    {
+                        SwitchToEditMode(existing);
+                        ShowError("Account already exists \u2014 switched to Edit. Review and press F5 to save.", txtName);
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
