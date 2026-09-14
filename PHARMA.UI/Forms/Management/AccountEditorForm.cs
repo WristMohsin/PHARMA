@@ -54,6 +54,16 @@ namespace PHARMA.UI.Forms.Management
                 LoadExisting(existing);
             KeyDown += AccountEditorForm_KeyDown;
             FormClosing += AccountEditorForm_FormClosing;
+            Shown += AccountEditorForm_Shown;
+        }
+
+        private void AccountEditorForm_Shown(object sender, EventArgs e)
+        {
+            if (txtName != null && !txtName.IsDisposed && txtName.CanFocus)
+            {
+                txtName.Focus();
+                txtName.SelectAll();
+            }
         }
 
         private void BuildUI()
@@ -173,7 +183,6 @@ namespace PHARMA.UI.Forms.Management
             chkActive.Checked = true;
             chkSys.Checked = false;
             _dirty = false;
-            BeginInvoke(new Action(delegate { txtName.Focus(); }));
         }
 
         private void LoadExisting(Account a)
@@ -193,7 +202,6 @@ namespace PHARMA.UI.Forms.Management
             chkActive.Checked = !string.Equals(a.StopTrans, "Y", StringComparison.OrdinalIgnoreCase);
             chkSys.Checked = !string.IsNullOrWhiteSpace(a.SysAc) && a.SysAc.Trim() != "";
             _dirty = false;
-            BeginInvoke(new Action(delegate { txtName.Focus(); }));
         }
 
         private void SetType(string code)
