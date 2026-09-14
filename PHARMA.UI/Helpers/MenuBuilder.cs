@@ -72,10 +72,11 @@ namespace PHARMA.UI.Helpers
             var result = new List<MenuName>();
             foreach (var m in items)
             {
-                string id = !string.IsNullOrEmpty(m.OptionVariable)
-                    ? "V:" + m.OptionVariable.Trim()
-                    : "T:" + (m.MenuTitle ?? "") + "|" + (m.OptionTitle ?? m.MenuSubTitle ?? "");
-                if (!seen.Add(id)) continue;
+                string k = !string.IsNullOrEmpty(m.OptionVariable)
+                    ? m.OptionVariable.Trim()
+                    : ((m.MenuTitle ?? "") + "|" + (m.OptionTitle ?? ""));
+                if (seen.Contains(k)) continue;
+                seen.Add(k);
                 result.Add(m);
             }
             return result;
@@ -83,16 +84,14 @@ namespace PHARMA.UI.Helpers
 
         private static List<MenuName> ResolveMenuItems(AuthService auth)
         {
-            List<MenuName> fromDb = new List<MenuName>();
+            List<MenuName> fromDb;
             try
             {
-                var q = auth.GetMenusForUser();
-                if (q != null)
-                    fromDb = q.ToList();
+                fromDb = new List<MenuName>(auth.GetMenusForUser() ?? new List<MenuName>());
             }
             catch (Exception ex)
             {
-                Trace.WriteLine("MenuBuilder: GetMenusForUser failed: " + ex.Message);
+                Trace.WriteLine("GetMenusForUser failed: " + ex.Message);
                 fromDb = new List<MenuName>();
             }
 
@@ -102,7 +101,6 @@ namespace PHARMA.UI.Helpers
             bool isAdmin = auth.IsAdmin();
             var rights = AuthService.CurrentRights ?? new List<UserRights>();
             var result = new List<MenuName>();
-            int order = 0;
             foreach (var m in ModuleCatalog.All)
             {
                 if (isAdmin || HasRight(rights, m))
@@ -113,7 +111,7 @@ namespace PHARMA.UI.Helpers
                         MenuSubTitle = m.MenuSubTitle,
                         OptionTitle = m.OptionTitle,
                         OptionVariable = m.Key,
-                        ButtonName = order++
+                        ButtonName = m.ButtonName
                     });
                 }
             }
