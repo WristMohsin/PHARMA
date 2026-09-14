@@ -42,13 +42,41 @@ namespace PHARMA.Services
                 }
                 if (string.IsNullOrEmpty(p.Active)) p.Active = "Y";
 
-                var existing = _repo.GetByCode(p.pcode.Trim());
                 p.pcode = p.pcode.Trim();
                 p.name1 = p.name1.Trim();
+
+                var existing = _repo.GetByCode(p.pcode);
                 if (existing == null)
+                {
                     _repo.Insert(p);
+                }
                 else
+                {
+                    p.balance = existing.balance;
                     _repo.Update(p);
+                }
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        public bool Deactivate(string pcode, out string error)
+        {
+            error = null;
+            try
+            {
+                var p = _repo.GetByCode(pcode);
+                if (p == null)
+                {
+                    error = "Product not found.";
+                    return false;
+                }
+                p.Active = "N";
+                _repo.Update(p);
                 return true;
             }
             catch (System.Exception ex)
