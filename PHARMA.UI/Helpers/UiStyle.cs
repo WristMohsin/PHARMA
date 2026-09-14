@@ -72,6 +72,70 @@ namespace PHARMA.UI.Helpers
             t.Font = new Font("Segoe UI", 10F);
         }
 
+        /// <summary>
+        /// Project-wide unsaved-changes prompt: Save / Don't Save / Cancel.
+        /// </summary>
+        public enum UnsavedChoice
+        {
+            Save = 0,
+            DontSave = 1,
+            Cancel = 2
+        }
+
+        public static UnsavedChoice ConfirmUnsavedChanges(IWin32Window owner, string title)
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = string.IsNullOrEmpty(title) ? "Unsaved Changes" : title;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ClientSize = new Size(360, 120);
+                dlg.MaximizeBox = false;
+                dlg.MinimizeBox = false;
+                dlg.ShowInTaskbar = false;
+                dlg.Font = new Font("Segoe UI", 9.5F);
+
+                var lbl = new Label();
+                lbl.Text = "Save changes before continuing?";
+                lbl.Location = new Point(16, 18);
+                lbl.AutoSize = true;
+                dlg.Controls.Add(lbl);
+
+                var result = UnsavedChoice.Cancel;
+
+                var btnSave = new Button();
+                btnSave.Text = "Save";
+                btnSave.Size = new Size(90, 28);
+                btnSave.Location = new Point(50, 70);
+                btnSave.Click += delegate { result = UnsavedChoice.Save; dlg.DialogResult = DialogResult.OK; dlg.Close(); };
+
+                var btnDont = new Button();
+                btnDont.Text = "Don't Save";
+                btnDont.Size = new Size(100, 28);
+                btnDont.Location = new Point(150, 70);
+                btnDont.Click += delegate { result = UnsavedChoice.DontSave; dlg.DialogResult = DialogResult.OK; dlg.Close(); };
+
+                var btnCancel = new Button();
+                btnCancel.Text = "Cancel";
+                btnCancel.Size = new Size(90, 28);
+                btnCancel.Location = new Point(260, 70);
+                btnCancel.Click += delegate { result = UnsavedChoice.Cancel; dlg.DialogResult = DialogResult.Cancel; dlg.Close(); };
+
+                dlg.Controls.Add(btnSave);
+                dlg.Controls.Add(btnDont);
+                dlg.Controls.Add(btnCancel);
+                dlg.CancelButton = btnCancel;
+                dlg.AcceptButton = btnSave;
+
+                if (owner != null)
+                    dlg.ShowDialog(owner);
+                else
+                    dlg.ShowDialog();
+
+                return result;
+            }
+        }
+
         public static bool ConfirmClose(Form f, string title)
         {
             return MessageBox.Show(
