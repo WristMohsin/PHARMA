@@ -7,6 +7,7 @@ namespace PHARMA.Services
     public class ProductService
     {
         private readonly ProductRepository _repo = new ProductRepository();
+
         public Product Get(string pcode) { return _repo.GetByCode(pcode); }
         public Product GetByBarcode(string bc) { return _repo.GetByBarcode(bc); }
         public List<Product> Search(string term) { return _repo.Search(term); }
@@ -18,6 +19,11 @@ namespace PHARMA.Services
             error = null;
             try
             {
+                if (p == null)
+                {
+                    error = "Invalid product.";
+                    return false;
+                }
                 if (string.IsNullOrWhiteSpace(p.pcode))
                 {
                     error = "Product code required.";
@@ -28,9 +34,21 @@ namespace PHARMA.Services
                     error = "Product name required.";
                     return false;
                 }
-                var existing = _repo.GetByCode(p.pcode);
-                if (existing == null) _repo.Insert(p);
-                else _repo.Update(p);
+                if (p.unit <= 0) p.unit = 1;
+                if (p.tp < 0 || p.rp < 0 || p.Pur_Rate < 0)
+                {
+                    error = "Prices cannot be negative.";
+                    return false;
+                }
+                if (string.IsNullOrEmpty(p.Active)) p.Active = "Y";
+
+                var existing = _repo.GetByCode(p.pcode.Trim());
+                p.pcode = p.pcode.Trim();
+                p.name1 = p.name1.Trim();
+                if (existing == null)
+                    _repo.Insert(p);
+                else
+                    _repo.Update(p);
                 return true;
             }
             catch (System.Exception ex)
