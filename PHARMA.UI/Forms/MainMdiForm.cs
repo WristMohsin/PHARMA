@@ -9,6 +9,7 @@ using PHARMA.UI.Forms.Inventory;
 using PHARMA.UI.Forms.Purchase;
 using PHARMA.UI.Forms.Accounts;
 using PHARMA.UI.Forms.Masters;
+using PHARMA.UI.Forms.Management;
 
 namespace PHARMA.UI.Forms
 {
@@ -182,6 +183,8 @@ namespace PHARMA.UI.Forms
                 OpenChild(new PurchaseForm());
             else if (moduleKey == "PRODUCTS" || moduleKey == "RPT_PRODUCTS")
                 OpenChild(new ProductListForm());
+            else if (moduleKey == "CHART_OF_ACCOUNTS")
+                OpenChild(new ChartOfAccountsForm());
             else if (moduleKey == "PAYMENT")
                 OpenChild(new PaymentForm());
             else if (moduleKey == "ACCOUNTS" || moduleKey == "RPT_CUSTOMERS")
