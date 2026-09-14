@@ -24,101 +24,72 @@ namespace PHARMA.UI.Forms
         {
             InitializeComponent();
             IsMdiContainer = true;
+            Text = "PHARMA - Pharmacy Management";
             WindowState = FormWindowState.Maximized;
             KeyPreview = true;
-            BackColor = Color.FromArgb(245, 247, 250);
-            try { BuildMenus(); }
-            catch (Exception ex) { statusLabel.Text = "Menu: " + ex.Message; }
-            ShowDashboard();
+            Load += MainMdiForm_Load;
+            KeyDown += MainMdiForm_KeyDown;
+        }
+
+        private void MainMdiForm_Load(object sender, EventArgs e)
+        {
+            BuildMenus();
+            BuildDashboard();
             UpdateStatus();
-            FormClosing += MainMdiForm_FormClosing;
-            MdiChildActivate += MainMdiForm_MdiChildActivate;
-        }
-
-        private void MainMdiForm_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.ApplicationExitCall)
-            {
-                if (!UiStyle.ConfirmAppExit())
-                    e.Cancel = true;
-            }
-        }
-
-        private void MainMdiForm_MdiChildActivate(object sender, EventArgs e)
-        {
-            if (ActiveMdiChild == null)
-                RestoreDashboard();
-            else
-                SendDashboardBack();
         }
 
         private void BuildMenus()
         {
             menuStrip1.Items.Clear();
-
-            var file = new ToolStripMenuItem("&File");
-            var exit = new ToolStripMenuItem("E&xit");
-            exit.ShortcutKeys = Keys.Alt | Keys.F4;
-            exit.Click += (s, e) => Close();
-            file.DropDownItems.Add(exit);
-            menuStrip1.Items.Add(file);
-
             try
             {
                 MenuBuilder.Build(menuStrip1, _auth, OpenModule);
             }
             catch (Exception ex)
             {
-                statusLabel.Text = "Menu load error: " + ex.Message;
+                System.Diagnostics.Trace.WriteLine("BuildMenus: " + ex.Message);
             }
-
-            var help = new ToolStripMenuItem("&Help");
-            var sc = new ToolStripMenuItem("&Shortcuts (F1)");
-            sc.Click += (s, e) => ShowHelp();
-            help.DropDownItems.Add(sc);
-            menuStrip1.Items.Add(help);
         }
 
-        private void ShowDashboard()
+        private void BuildDashboard()
         {
             if (_welcomePanel != null)
             {
-                _welcomePanel.Visible = true;
-                _welcomePanel.SendToBack();
-                return;
+                Controls.Remove(_welcomePanel);
+                _welcomePanel.Dispose();
             }
 
             _welcomePanel = new Panel();
             _welcomePanel.Dock = DockStyle.Fill;
-            _welcomePanel.BackColor = Color.FromArgb(245, 247, 250);
+            _welcomePanel.BackColor = Color.FromArgb(245, 248, 250);
 
             var title = new Label();
-            title.Text = "PHARMA / PharmaZ";
-            title.Font = new Font("Segoe UI", 26F, FontStyle.Bold);
-            title.ForeColor = Color.FromArgb(30, 60, 120);
+            title.Text = "PHARMA Dashboard";
+            title.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
+            title.ForeColor = Color.FromArgb(0, 90, 140);
             title.AutoSize = true;
             title.Location = new Point(40, 30);
 
-            var user = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "-";
             var sub = new Label();
+            string user = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "";
             sub.Text = "Welcome, " + user;
             sub.Font = new Font("Segoe UI", 12F);
             sub.AutoSize = true;
-            sub.Location = new Point(40, 80);
-
-            decimal todaySale = 0;
-            int lowStock = 0;
-            decimal outstanding = 0;
-            try { todaySale = _saleSvc.GetTodayTotal(); } catch { }
-            try { lowStock = _prodSvc.GetLowStock(10).Count; } catch { }
-            try { outstanding = _accSvc.OutstandingTotal(); } catch { }
+            sub.Location = new Point(40, 75);
 
             var stats = new Label();
-            stats.Text = string.Format("Today's Sale: {0:N2}     |     Low Stock: {1}     |     Outstanding: {2:N2}", todaySale, lowStock, outstanding);
-            stats.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            stats.ForeColor = Color.FromArgb(0, 100, 80);
+            stats.Font = new Font("Segoe UI", 11F);
             stats.AutoSize = true;
             stats.Location = new Point(40, 115);
+            try
+            {
+                decimal today = _saleSvc.GetTodayTotal();
+                stats.Text = "Today's sales: " + today.ToString("N2");
+            }
+            catch
+            {
+                stats.Text = "Today's sales: (unavailable)";
+            }
 
             var allowed = MenuBuilder.GetAuthorizedModuleKeys(_auth);
             int y = 170;
@@ -156,47 +127,12 @@ namespace PHARMA.UI.Forms
             statusStrip1.BringToFront();
         }
 
-        private void SendDashboardBack()
-        {
-            if (_welcomePanel != null)
-            {
-                _welcomePanel.Visible = true;
-                _welcomePanel.SendToBack();
-            }
-        }
-
-        private void RestoreDashboard()
-        {
-            if (_welcomePanel != null)
-            {
-                _welcomePanel.Visible = true;
-                _welcomePanel.BringToFront();
-                menuStrip1.BringToFront();
-                statusStrip1.BringToFront();
-                RefreshDashboardStats();
-            }
-        }
-
-        private void RefreshDashboardStats()
+        private void UpdateStatus()
         {
             try
             {
-                foreach (Control c in _welcomePanel.Controls)
-                {
-                    var lbl = c as Label;
-                    if (lbl != null && lbl.Text != null && lbl.Text.StartsWith("Today's Sale"))
-                    {
-                        decimal todaySale = 0;
-                        int lowStock = 0;
-                        decimal outstanding = 0;
-                        try { todaySale = _saleSvc.GetTodayTotal(); } catch { }
-                        try { lowStock = _prodSvc.GetLowStock(10).Count; } catch { }
-                        try { outstanding = _accSvc.OutstandingTotal(); } catch { }
-                        lbl.Text = string.Format("Today's Sale: {0:N2}     |     Low Stock: {1}     |     Outstanding: {2:N2}",
-                            todaySale, lowStock, outstanding);
-                        break;
-                    }
-                }
+                string user = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "";
+                toolStripStatusLabel1.Text = "User: " + user;
             }
             catch { }
         }
@@ -236,6 +172,7 @@ namespace PHARMA.UI.Forms
                 return;
             }
 
+            // Existing working forms
             if (moduleKey == "POS")
                 OpenChild(new PosForm());
             else if (moduleKey == "SALE_RETURN")
@@ -244,16 +181,31 @@ namespace PHARMA.UI.Forms
                 OpenChild(new SaleListForm());
             else if (moduleKey == "PURCHASE")
                 OpenChild(new PurchaseForm());
-            else if (moduleKey == "PRODUCTS")
+            else if (moduleKey == "PRODUCTS" || moduleKey == "RPT_PRODUCTS")
                 OpenChild(new ProductListForm());
             else if (moduleKey == "PAYMENT")
                 OpenChild(new PaymentForm());
-            else if (moduleKey == "ACCOUNTS")
+            else if (moduleKey == "ACCOUNTS" || moduleKey == "RPT_CUSTOMERS")
                 OpenChild(new AccountListForm());
-            else if (moduleKey == "COMPANIES")
+            else if (moduleKey == "RPT_COMPANIES" || moduleKey == "COMPANIES")
                 OpenChild(new CompanyListForm());
             else
-                MessageBox.Show("No form mapped for module: " + moduleKey, "PHARMA");
+            {
+                // Phase A: remaining ERP modules are menu + rights only
+                string title = ResolveModuleTitle(moduleKey);
+                ComingSoonForm.ShowFor(this, moduleKey, title);
+            }
+        }
+
+        private static string ResolveModuleTitle(string moduleKey)
+        {
+            if (string.IsNullOrEmpty(moduleKey)) return moduleKey;
+            foreach (var m in ModuleCatalog.All)
+            {
+                if (string.Equals(m.Key, moduleKey, StringComparison.OrdinalIgnoreCase))
+                    return m.OptionTitle;
+            }
+            return moduleKey;
         }
 
         private void OpenChild(Form child)
@@ -264,40 +216,30 @@ namespace PHARMA.UI.Forms
                 {
                     f.Activate();
                     child.Dispose();
-                    SendDashboardBack();
                     return;
                 }
             }
-
             child.MdiParent = this;
             child.WindowState = FormWindowState.Maximized;
             child.FormClosed += Child_FormClosed;
             child.Show();
-            SendDashboardBack();
-            child.BringToFront();
-            child.Activate();
+            if (_welcomePanel != null)
+                _welcomePanel.Visible = false;
         }
 
         private void Child_FormClosed(object sender, FormClosedEventArgs e)
         {
-            BeginInvoke(new Action(delegate
-            {
-                if (MdiChildren.Length == 0)
-                    RestoreDashboard();
-            }));
-        }
-
-        private void UpdateStatus()
-        {
-            var u = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "-";
-            statusLabel.Text = "User: " + u + "  |  DB: PharmaZ  |  Ctrl+S=POS  Ctrl+P=Purchase  Ctrl+I=Products  Ctrl+A=Accounts  F1=Help";
+            if (MdiChildren.Length == 0 && _welcomePanel != null)
+                _welcomePanel.Visible = true;
         }
 
         private void ShowHelp()
         {
             MessageBox.Show(
-                "Ctrl+S  POS\nCtrl+P  Purchase\nCtrl+I  Products\nCtrl+A  Accounts\nF1  Help\nF2  New/Add\nF4  Product Search\nF5  Save\nF9  Print\nEsc  Close form\nAlt+F4  Exit app",
-                "Shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Shortcuts:\nCtrl+S POS\nCtrl+P Purchase\nCtrl+I Products\nCtrl+A Accounts\nF1 Help",
+                "PHARMA Help",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         private void MainMdiForm_KeyDown(object sender, KeyEventArgs e)
