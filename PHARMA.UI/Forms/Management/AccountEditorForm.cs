@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using PHARMA.Models;
 using PHARMA.Services;
+using PHARMA.UI.Helpers;
 
 namespace PHARMA.UI.Forms.Management
 {
@@ -311,25 +312,52 @@ namespace PHARMA.UI.Forms.Management
 
         private void AccountEditorForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.F5) { Save(); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.Enter) { Save(); e.Handled = true; }
+            if (e.KeyCode == Keys.F5) { SaveAndCloseIfOk(); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.Enter) { SaveAndCloseIfOk(); e.Handled = true; }
             else if (e.KeyCode == Keys.Escape) { TryCancel(); e.Handled = true; }
         }
 
         private void AccountEditorForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             if (DialogResult == DialogResult.OK) return;
-            if (_dirty)
+            if (!_dirty) return;
+
+            UiStyle.UnsavedChoice choice = UiStyle.ConfirmUnsavedChanges(this, Text);
+            if (choice == UiStyle.UnsavedChoice.Cancel)
             {
-                var r = MessageBox.Show("Discard unsaved changes?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (r != DialogResult.Yes) e.Cancel = true;
+                e.Cancel = true;
+                return;
+            }
+            if (choice == UiStyle.UnsavedChoice.DontSave)
+            {
+                _dirty = false;
+                return;
+            }
+            if (!PersistChanges())
+                e.Cancel = true;
+            else
+            {
+                DialogResult = DialogResult.OK;
+                _dirty = false;
             }
         }
 
         private void TryCancel()
         {
-            DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        private void SaveAndCloseIfOk()
+        {
+            if (!PersistChanges()) return;
+            _dirty = false;
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private void Save()
+        {
+            SaveAndCloseIfOk();
         }
 
         private void ClearError() { lblError.Text = ""; }
@@ -340,7 +368,7 @@ namespace PHARMA.UI.Forms.Management
             if (focus != null) focus.Focus();
         }
 
-        private void Save()
+        private bool PersistChanges()
         {
             ClearError();
             if (_isNew && !txtCode.ReadOnly)
@@ -348,29 +376,29 @@ namespace PHARMA.UI.Forms.Management
 
             int code;
             if (!int.TryParse(txtCode.Text.Trim(), out code) || code <= 0)
-            { ShowError("Account code must be a positive whole number.", txtCode); return; }
+            { ShowError("Account code must be a positive whole number.", txtCode); return false; }
             string name = txtName.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { ShowError("Account name is required.", txtName); return; }
-            if (name.Length > 50) { ShowError("Account name cannot exceed 50 characters.", txtName); return; }
+            if (string.IsNullOrEmpty(name)) { ShowError("Account name is required.", txtName); return false; }
+            if (name.Length > 50) { ShowError("Account name cannot exceed 50 characters.", txtName); return false; }
             string type = cboType.SelectedItem != null ? cboType.SelectedItem.ToString().Trim() : "C";
             if (type.Length == 0) type = "C";
             if (type.Length > 1) type = type.Substring(0, 1);
             string main = txtMain.Text.Trim();
-            if (main.Length > 6) { ShowError("Main cannot exceed 6 characters.", txtMain); return; }
+            if (main.Length > 6) { ShowError("Main cannot exceed 6 characters.", txtMain); return false; }
             int scode = 0;
             if (!string.IsNullOrWhiteSpace(txtScode.Text) && !int.TryParse(txtScode.Text.Trim(), out scode))
-            { ShowError("S-Code must be a whole number.", txtScode); return; }
+            { ShowError("S-Code must be a whole number.", txtScode); return false; }
             decimal opening = 0;
             if (_isNew)
             {
                 if (!string.IsNullOrWhiteSpace(txtBalance.Text) &&
                     !decimal.TryParse(txtBalance.Text.Trim().Replace(",", ""), out opening))
-                { ShowError("Opening balance must be numeric.", txtBalance); return; }
+                { ShowError("Opening balance must be numeric.", txtBalance); return false; }
             }
             string phone = txtPhone.Text.Trim();
             string mobile = txtMobile.Text.Trim();
-            if (phone.Length > 25) { ShowError("Phone cannot exceed 25 characters.", txtPhone); return; }
-            if (mobile.Length > 50) { ShowError("Mobile cannot exceed 50 characters.", txtMobile); return; }
+            if (phone.Length > 25) { ShowError("Phone cannot exceed 25 characters.", txtPhone); return false; }
+            if (mobile.Length > 50) { ShowError("Mobile cannot exceed 50 characters.", txtMobile); return false; }
 
             if (_isNew)
             {
@@ -381,14 +409,14 @@ namespace PHARMA.UI.Forms.Management
                     {
                         SwitchToEditMode(existing);
                         ShowError("Account already exists \u2014 switched to Edit. Review and press F5 to save.", txtName);
-                        return;
+                        return false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Trace.WriteLine("AccountEditorForm.Save unique: " + ex.Message);
+                    Trace.WriteLine("AccountEditorForm.PersistChanges unique: " + ex.Message);
                     ShowError("Could not verify account code uniqueness.", txtCode);
-                    return;
+                    return false;
                 }
             }
 
@@ -411,13 +439,12 @@ namespace PHARMA.UI.Forms.Management
             if (!_svc.Save(a, out error))
             {
                 ShowError(string.IsNullOrEmpty(error) ? "Save failed." : error, null);
-                return;
+                return false;
             }
 
             SavedCode = code;
             _dirty = false;
-            DialogResult = DialogResult.OK;
-            Close();
+            return true;
         }
     }
 }
