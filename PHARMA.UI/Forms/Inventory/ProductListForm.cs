@@ -12,16 +12,10 @@ namespace PHARMA.UI.Forms.Inventory
     public class ProductListForm : Form
     {
         private readonly ProductService _svc = new ProductService();
-
         private TextBox txtSearch;
         private DataGridView dgv;
-        private Label lblInfo;
-        private TextBox txtCode, txtName, txtPack, txtUnit, txtTp, txtRp, txtPurRate, txtBarcode, txtStock;
-        private CheckBox chkActive;
-        private Button btnNew, btnSave, btnClear, btnSearch, btnLow, btnClose, btnRefresh;
-        private bool _isNew;
-        private bool _dirty;
-        private string _loadedCode;
+        private Label lblStatus;
+        private Button btnNew, btnSearch, btnRefresh, btnLow, btnDeactivate, btnClose;
 
         public ProductListForm()
         {
@@ -30,23 +24,9 @@ namespace PHARMA.UI.Forms.Inventory
             WindowState = FormWindowState.Maximized;
             BackColor = Color.FromArgb(250, 248, 240);
             Font = new Font("Microsoft Sans Serif", 9F);
-            FormClosing += ProductListForm_FormClosing;
             BuildUI();
-            ClearDetail(true);
-            LoadData("");
+            ReloadFromDb("");
             KeyDown += ProductListForm_KeyDown;
-        }
-
-        private void ProductListForm_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.ApplicationExitCall)
-            {
-                if (_dirty)
-                {
-                    if (!UiStyle.ConfirmClose(this, "Products"))
-                        e.Cancel = true;
-                }
-            }
         }
 
         private void BuildUI()
@@ -54,168 +34,140 @@ namespace PHARMA.UI.Forms.Inventory
             var tool = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 44,
+                Height = 40,
                 BackColor = Color.FromArgb(245, 240, 225)
             };
             txtSearch = new TextBox
             {
-                Location = new Point(8, 10),
-                Size = new Size(260, 24),
+                Location = new Point(6, 8),
+                Size = new Size(220, 22),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            txtSearch.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Enter)
-                {
-                    LoadData(txtSearch.Text.Trim());
-                    e.SuppressKeyPress = true;
-                }
-            };
-            btnSearch = new Button { Text = "Search", Location = new Point(274, 8), Size = new Size(70, 28) };
-            btnRefresh = new Button { Text = "Refresh", Location = new Point(348, 8), Size = new Size(70, 28) };
-            btnLow = new Button { Text = "Low Stock", Location = new Point(422, 8), Size = new Size(80, 28) };
-            btnNew = new Button { Text = "New (F2)", Location = new Point(520, 8), Size = new Size(78, 28) };
-            btnSave = new Button { Text = "Save (F5)", Location = new Point(602, 8), Size = new Size(78, 28) };
-            btnClear = new Button { Text = "Clear", Location = new Point(684, 8), Size = new Size(60, 28) };
-            btnClose = new Button { Text = "Close (Esc)", Location = new Point(748, 8), Size = new Size(84, 28) };
-
-            btnSearch.Click += (s, e) => LoadData(txtSearch.Text.Trim());
-            btnRefresh.Click += (s, e) => LoadData(txtSearch.Text.Trim());
+            txtSearch.KeyDown += TxtSearch_KeyDown;
+            btnSearch = MkBtn("Search", 232, 6, 64);
+            btnRefresh = MkBtn("Refresh", 300, 6, 64);
+            btnLow = MkBtn("Low Stock", 368, 6, 72);
+            btnNew = MkBtn("New (F2)", 448, 6, 72);
+            btnDeactivate = MkBtn("Deactivate", 524, 6, 80);
+            btnClose = MkBtn("Close (Esc)", 608, 6, 80);
+            btnSearch.Click += (s, e) => ReloadFromDb(txtSearch.Text.Trim());
+            btnRefresh.Click += (s, e) => { txtSearch.Clear(); ReloadFromDb(""); };
             btnLow.Click += (s, e) => LoadLowStock();
-            btnNew.Click += (s, e) => StartNew();
-            btnSave.Click += (s, e) => Save();
-            btnClear.Click += (s, e) => ClearDetail(false);
+            btnNew.Click += (s, e) => OpenNew();
+            btnDeactivate.Click += (s, e) => DeactivateSelected();
             btnClose.Click += (s, e) => Close();
-
             tool.Controls.AddRange(new Control[]
             {
-                txtSearch, btnSearch, btnRefresh, btnLow, btnNew, btnSave, btnClear, btnClose
+                txtSearch, btnSearch, btnRefresh, btnLow, btnNew, btnDeactivate, btnClose
             });
 
-            var detail = new Panel
+            var footer = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 150,
-                BackColor = Color.FromArgb(255, 250, 235),
-                Padding = new Padding(6)
+                Height = 28,
+                BackColor = Color.FromArgb(245, 240, 225)
             };
-
-            int y = 8;
-            detail.Controls.Add(Lbl("Code", 8, y + 2));
-            txtCode = Tb(50, y, 90);
-            detail.Controls.Add(txtCode);
-
-            detail.Controls.Add(Lbl("Name", 150, y + 2));
-            txtName = Tb(190, y, 280);
-            detail.Controls.Add(txtName);
-
-            detail.Controls.Add(Lbl("Pack", 480, y + 2));
-            txtPack = Tb(515, y, 70);
-            detail.Controls.Add(txtPack);
-
-            detail.Controls.Add(Lbl("Unit", 595, y + 2));
-            txtUnit = Tb(630, y, 50);
-            detail.Controls.Add(txtUnit);
-
-            detail.Controls.Add(Lbl("Active", 700, y + 2));
-            chkActive = new CheckBox { Location = new Point(745, y), Checked = true, AutoSize = true };
-            detail.Controls.Add(chkActive);
-
-            y = 42;
-            detail.Controls.Add(Lbl("TP", 8, y + 2));
-            txtTp = Tb(50, y, 80);
-            detail.Controls.Add(txtTp);
-
-            detail.Controls.Add(Lbl("RP", 140, y + 2));
-            txtRp = Tb(170, y, 80);
-            detail.Controls.Add(txtRp);
-
-            detail.Controls.Add(Lbl("Pur Rate", 260, y + 2));
-            txtPurRate = Tb(320, y, 80);
-            detail.Controls.Add(txtPurRate);
-
-            detail.Controls.Add(Lbl("Barcode", 410, y + 2));
-            txtBarcode = Tb(465, y, 140);
-            detail.Controls.Add(txtBarcode);
-
-            detail.Controls.Add(Lbl("Stock", 620, y + 2));
-            txtStock = Tb(660, y, 70);
-            txtStock.ReadOnly = true;
-            txtStock.BackColor = Color.WhiteSmoke;
-            detail.Controls.Add(txtStock);
-
-            y = 78;
-            lblInfo = new Label
+            lblStatus = new Label
             {
-                Location = new Point(8, y),
-                AutoSize = true,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(6, 0, 0, 0),
                 ForeColor = Color.DimGray,
-                Text = "F2 New  F5 Save  F3 Search  Esc Close  |  Double-click row to edit"
+                Text = "F2 New  Enter/Double-click Edit  F3 Search  Esc Close  |  Grid is read-only"
             };
-            detail.Controls.Add(lblInfo);
-
-            EventHandler mark = (s, e) => { _dirty = true; };
-            foreach (var t in new[] { txtCode, txtName, txtPack, txtUnit, txtTp, txtRp, txtPurRate, txtBarcode })
-                t.TextChanged += mark;
-            chkActive.CheckedChanged += mark;
+            footer.Controls.Add(lblStatus);
 
             dgv = new DataGridView
             {
                 Dock = DockStyle.Fill,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
+                RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 MultiSelect = false,
-                RowHeadersVisible = false,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.Fixed3D,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                AutoGenerateColumns = false,
+                EditMode = DataGridViewEditMode.EditProgrammatically
             };
+            dgv.RowTemplate.Height = 22;
+            dgv.ColumnHeadersHeight = 24;
             UiStyle.StyleGrid(dgv);
-            dgv.CellDoubleClick += Dgv_CellDoubleClick;
-            dgv.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Enter && dgv.CurrentRow != null)
-                {
-                    LoadFromGridRow(dgv.CurrentRow);
-                    e.Handled = true;
-                }
-            };
+            BuildColumns();
+            dgv.CellDoubleClick += (s, e) => { if (e.RowIndex >= 0) OpenEditSelected(); };
+            dgv.KeyDown += Dgv_KeyDown;
 
             Controls.Add(dgv);
-            Controls.Add(detail);
+            Controls.Add(footer);
             Controls.Add(tool);
         }
 
-        private static Label Lbl(string text, int x, int y)
+        private static Button MkBtn(string text, int x, int y, int w)
         {
-            return new Label { Text = text, Location = new Point(x, y), AutoSize = true };
-        }
-
-        private static TextBox Tb(int x, int y, int w)
-        {
-            return new TextBox
+            return new Button
             {
+                Text = text,
                 Location = new Point(x, y),
-                Size = new Size(w, 22),
-                BorderStyle = BorderStyle.FixedSingle
+                Size = new Size(w, 26),
+                FlatStyle = FlatStyle.System
             };
         }
 
-        private void LoadData(string term)
+        private void BuildColumns()
+        {
+            dgv.Columns.Clear();
+            dgv.Columns.Add(Col("Code", "Code", 80));
+            dgv.Columns.Add(Col("Name", "Product Name", 200));
+            dgv.Columns.Add(Col("Pack", "Pack", 60));
+            dgv.Columns.Add(Col("Unit", "Unit", 45));
+            var stock = Col("Stock", "Stock", 60);
+            stock.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgv.Columns.Add(stock);
+            var tp = Col("TP", "TP", 70);
+            tp.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            tp.DefaultCellStyle.Format = "N2";
+            dgv.Columns.Add(tp);
+            var rp = Col("RP", "RP", 70);
+            rp.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            rp.DefaultCellStyle.Format = "N2";
+            dgv.Columns.Add(rp);
+            var pur = Col("PurRate", "Pur Rate", 70);
+            pur.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            pur.DefaultCellStyle.Format = "N2";
+            dgv.Columns.Add(pur);
+            dgv.Columns.Add(Col("Barcode", "Barcode", 100));
+            dgv.Columns.Add(Col("Active", "Active", 50));
+        }
+
+        private static DataGridViewTextBoxColumn Col(string name, string header, int width)
+        {
+            return new DataGridViewTextBoxColumn
+            {
+                Name = name,
+                DataPropertyName = name,
+                HeaderText = header,
+                Width = width,
+                ReadOnly = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            };
+        }
+
+        private void ReloadFromDb(string term)
         {
             try
             {
                 var list = _svc.Search(term);
-                BindGrid(list);
-                lblInfo.Text = "Records: " + list.Count + "  |  F2 New  F5 Save  F3 Search  Esc Close";
+                Bind(list);
+                lblStatus.Text = "Rows: " + list.Count +
+                                 "  |  F2 New  Enter/Double-click Edit  F3 Search  Esc Close  |  Stock is transaction-controlled";
             }
             catch (Exception ex)
             {
-                Trace.WriteLine("ProductListForm.LoadData: " + ex.Message);
-                MessageBox.Show("Could not load products. Check the database connection.", "Products",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Trace.WriteLine("ProductListForm.ReloadFromDb: " + ex.Message);
+                MessageBox.Show("Could not load products. Check the database connection.",
+                    "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -224,8 +176,8 @@ namespace PHARMA.UI.Forms.Inventory
             try
             {
                 var list = _svc.GetLowStock(10);
-                BindGrid(list);
-                lblInfo.Text = "Low stock (\u226410): " + list.Count;
+                Bind(list);
+                lblStatus.Text = "Low stock (\u226410): " + list.Count;
             }
             catch (Exception ex)
             {
@@ -235,7 +187,7 @@ namespace PHARMA.UI.Forms.Inventory
             }
         }
 
-        private void BindGrid(System.Collections.Generic.List<Product> list)
+        private void Bind(System.Collections.Generic.List<Product> list)
         {
             dgv.DataSource = null;
             dgv.DataSource = list.Select(p => new
@@ -249,219 +201,143 @@ namespace PHARMA.UI.Forms.Inventory
                 RP = p.rp,
                 PurRate = p.Pur_Rate,
                 Barcode = p.BarCode1,
-                Active = p.Active
+                Active = string.IsNullOrEmpty(p.Active) || string.Equals(p.Active, "Y", StringComparison.OrdinalIgnoreCase) ? "Yes" : "No"
             }).ToList();
         }
 
-        private void Dgv_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        private void TxtSearch_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.RowIndex < 0) return;
-            LoadFromGridRow(dgv.Rows[e.RowIndex]);
+            if (e.KeyCode == Keys.Enter)
+            {
+                ReloadFromDb(txtSearch.Text.Trim());
+                e.SuppressKeyPress = true;
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                dgv.Focus();
+                e.Handled = true;
+            }
         }
 
-        private void LoadFromGridRow(DataGridViewRow row)
+        private void OpenNew()
         {
-            if (row == null || row.Cells["Code"].Value == null) return;
-            string code = row.Cells["Code"].Value.ToString();
-            try
+            using (var f = ProductEditorForm.ForNew())
             {
-                var p = _svc.Get(code);
-                if (p == null)
+                if (f.ShowDialog(this) == DialogResult.OK)
                 {
-                    MessageBox.Show("Product not found: " + code, "Products", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
+                    ReloadFromDb(txtSearch.Text.Trim());
+                    SelectCode(f.SavedCode);
                 }
-                _isNew = false;
-                _loadedCode = p.pcode;
-                txtCode.Text = p.pcode ?? "";
-                txtCode.ReadOnly = true;
-                txtCode.BackColor = Color.WhiteSmoke;
-                txtName.Text = p.name1 ?? "";
-                txtPack.Text = p.pack ?? "";
-                txtUnit.Text = p.unit > 0 ? p.unit.ToString() : "1";
-                txtTp.Text = p.tp.ToString("0.####");
-                txtRp.Text = p.rp.ToString("0.####");
-                txtPurRate.Text = p.Pur_Rate.ToString("0.####");
-                txtBarcode.Text = p.BarCode1 ?? "";
-                txtStock.Text = p.balance.ToString();
-                chkActive.Checked = string.IsNullOrEmpty(p.Active) || string.Equals(p.Active, "Y", StringComparison.OrdinalIgnoreCase);
-                _dirty = false;
-                txtName.Focus();
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine("ProductListForm.LoadFromGridRow: " + ex.Message);
-                MessageBox.Show("Could not load product details.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
-        private void StartNew()
+        private void OpenEditSelected()
         {
-            if (_dirty)
-            {
-                var r = MessageBox.Show("Discard unsaved changes and start a new product?", "Products",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (r != DialogResult.Yes) return;
-            }
-            ClearDetail(true);
-            txtCode.Focus();
-        }
-
-        private void ClearDetail(bool asNew)
-        {
-            _isNew = asNew;
-            _loadedCode = null;
-            txtCode.ReadOnly = false;
-            txtCode.BackColor = Color.White;
-            txtCode.Clear();
-            txtName.Clear();
-            txtPack.Clear();
-            txtUnit.Text = "1";
-            txtTp.Clear();
-            txtRp.Clear();
-            txtPurRate.Clear();
-            txtBarcode.Clear();
-            txtStock.Text = "0";
-            chkActive.Checked = true;
-            _dirty = false;
-        }
-
-        private void Save()
-        {
-            string code = txtCode.Text.Trim();
-            string name = txtName.Text.Trim();
-
+            string code = GetSelectedCode();
             if (string.IsNullOrEmpty(code))
             {
-                MessageBox.Show("Product code is required.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtCode.Focus();
+                MessageBox.Show("Select a product row first.", "Products",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            if (code.Length > 50)
+            Product p;
+            try { p = _svc.Get(code); }
+            catch (Exception ex)
             {
-                MessageBox.Show("Product code is too long.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtCode.Focus();
+                Trace.WriteLine("ProductListForm.OpenEdit: " + ex.Message);
+                MessageBox.Show("Could not load product.", "Products",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (string.IsNullOrEmpty(name))
+            if (p == null)
             {
-                MessageBox.Show("Product name is required.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtName.Focus();
+                MessageBox.Show("Product not found: " + code, "Products",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-
-            int unit = 1;
-            if (!string.IsNullOrWhiteSpace(txtUnit.Text))
+            using (var f = ProductEditorForm.ForEdit(p))
             {
-                if (!int.TryParse(txtUnit.Text.Trim(), out unit) || unit <= 0)
+                if (f.ShowDialog(this) == DialogResult.OK)
                 {
-                    MessageBox.Show("Unit (pack size) must be a whole number greater than zero.", "Products",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    txtUnit.Focus();
-                    return;
+                    ReloadFromDb(txtSearch.Text.Trim());
+                    SelectCode(f.SavedCode);
                 }
             }
+        }
 
-            decimal tp = 0, rp = 0, pur = 0;
-            if (!string.IsNullOrWhiteSpace(txtTp.Text) && !decimal.TryParse(txtTp.Text.Trim(), out tp))
-            {
-                MessageBox.Show("Trade price (TP) must be a valid number.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtTp.Focus();
-                return;
-            }
-            if (!string.IsNullOrWhiteSpace(txtRp.Text) && !decimal.TryParse(txtRp.Text.Trim(), out rp))
-            {
-                MessageBox.Show("Retail price (RP) must be a valid number.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtRp.Focus();
-                return;
-            }
-            if (!string.IsNullOrWhiteSpace(txtPurRate.Text) && !decimal.TryParse(txtPurRate.Text.Trim(), out pur))
-            {
-                MessageBox.Show("Purchase rate must be a valid number.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtPurRate.Focus();
-                return;
-            }
-            if (tp < 0 || rp < 0 || pur < 0)
-            {
-                MessageBox.Show("Prices cannot be negative.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+        private string GetSelectedCode()
+        {
+            if (dgv.CurrentRow == null || dgv.CurrentRow.Index < 0) return null;
+            object v = dgv.CurrentRow.Cells["Code"].Value;
+            return v != null ? v.ToString() : null;
+        }
 
-            if (_isNew || !string.Equals(code, _loadedCode, StringComparison.OrdinalIgnoreCase))
+        private void SelectCode(string code)
+        {
+            if (string.IsNullOrEmpty(code) || dgv.Rows.Count == 0) return;
+            foreach (DataGridViewRow row in dgv.Rows)
             {
-                try
+                if (row.Cells["Code"].Value != null &&
+                    string.Equals(row.Cells["Code"].Value.ToString(), code, StringComparison.OrdinalIgnoreCase))
                 {
-                    var existing = _svc.Get(code);
-                    if (existing != null)
-                    {
-                        MessageBox.Show("Product code already exists: " + code, "Products",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        txtCode.Focus();
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine("ProductListForm.Save duplicate check: " + ex.Message);
-                    MessageBox.Show("Could not verify product code uniqueness.", "Products",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    row.Selected = true;
+                    dgv.CurrentCell = row.Cells["Code"];
+                    try { dgv.FirstDisplayedScrollingRowIndex = row.Index; }
+                    catch { }
+                    break;
                 }
             }
+        }
 
-            int stock = 0;
-            int.TryParse(txtStock.Text.Trim(), out stock);
-
-            var p = new Product
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
             {
-                pcode = code,
-                name1 = name,
-                pack = string.IsNullOrWhiteSpace(txtPack.Text) ? null : txtPack.Text.Trim(),
-                unit = unit,
-                tp = tp,
-                rp = rp,
-                Pur_Rate = pur,
-                BarCode1 = string.IsNullOrWhiteSpace(txtBarcode.Text) ? null : txtBarcode.Text.Trim(),
-                Active = chkActive.Checked ? "Y" : "N",
-                balance = stock
-            };
-
-            if (!_isNew && !string.IsNullOrEmpty(_loadedCode))
-            {
-                try
-                {
-                    var cur = _svc.Get(_loadedCode);
-                    if (cur != null)
-                        p.balance = cur.balance;
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine("ProductListForm.Save preserve stock: " + ex.Message);
-                }
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                OpenEditSelected();
             }
+        }
 
+        private void DeactivateSelected()
+        {
+            string code = GetSelectedCode();
+            if (string.IsNullOrEmpty(code))
+            {
+                MessageBox.Show("Select a product row first.", "Products",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var r = MessageBox.Show(
+                "Deactivate product " + code + " (Active = N)?\nReferenced history is kept.",
+                "Products", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (r != DialogResult.Yes) return;
             string error;
-            if (!_svc.Save(p, out error))
+            if (!_svc.Deactivate(code, out error))
             {
-                MessageBox.Show(error ?? "Save failed.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(error ?? "Deactivate failed.", "Products",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-
-            MessageBox.Show("Product saved: " + code, "Products", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            _dirty = false;
-            _isNew = false;
-            _loadedCode = code;
-            txtCode.ReadOnly = true;
-            txtCode.BackColor = Color.WhiteSmoke;
-            LoadData(txtSearch.Text.Trim());
+            ReloadFromDb(txtSearch.Text.Trim());
+            SelectCode(code);
+            lblStatus.Text = "Deactivated " + code;
         }
 
         private void ProductListForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.F2) { StartNew(); e.Handled = true; }
-            else if (e.KeyCode == Keys.F5) { Save(); e.Handled = true; }
-            else if (e.KeyCode == Keys.F3) { txtSearch.Focus(); txtSearch.SelectAll(); e.Handled = true; }
-            else if (e.KeyCode == Keys.Escape) { Close(); e.Handled = true; }
+            if (e.KeyCode == Keys.F2) { OpenNew(); e.Handled = true; }
+            else if (e.KeyCode == Keys.F3)
+            {
+                txtSearch.Focus();
+                txtSearch.SelectAll();
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                if (txtSearch.Focused) { dgv.Focus(); e.Handled = true; }
+                else { Close(); e.Handled = true; }
+            }
         }
     }
 }
