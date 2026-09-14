@@ -132,7 +132,7 @@ namespace PHARMA.UI.Forms
             try
             {
                 string user = AuthService.CurrentUser != null ? AuthService.CurrentUser.UserName : "";
-                toolStripStatusLabel1.Text = "User: " + user;
+                statusLabel.Text = "User: " + user;
             }
             catch { }
         }
@@ -172,7 +172,6 @@ namespace PHARMA.UI.Forms
                 return;
             }
 
-            // Existing working forms
             if (moduleKey == "POS")
                 OpenChild(new PosForm());
             else if (moduleKey == "SALE_RETURN")
@@ -191,7 +190,6 @@ namespace PHARMA.UI.Forms
                 OpenChild(new CompanyListForm());
             else
             {
-                // Phase A: remaining ERP modules are menu + rights only
                 string title = ResolveModuleTitle(moduleKey);
                 ComingSoonForm.ShowFor(this, moduleKey, title);
             }
